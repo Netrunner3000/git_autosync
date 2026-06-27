@@ -1,0 +1,25 @@
+# Python / uv
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build artifacts (PyInstaller, for the upcoming GUI app)
+build/
+dist/
+*.spec.bak
+
+# Secrets / local
+.env
+*.key
+
+# Runtime logs (keep the folder via logs/.gitkeep, ignore the logs themselves)
+logs/*.log
+*.log
+
+# Local data / misc
+*.db
+*.zip
+output/
+.DS_Store
+.claude/
