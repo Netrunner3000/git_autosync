@@ -1,0 +1,18 @@
+# autosync_repos.txt — source of truth for which repos git_autosync pushes.
+# One repo per line. A bare name resolves under ~/Documents/lab/active/.
+# You can also give an absolute path (/Users/...) or a ~/path.
+# Lines starting with # and blank lines are ignored.
+#
+# Only repos that already have a GitHub 'origin' remote are synced;
+# others are skipped with a notice.
+
+backup_manager
+convert_epub
+image_tools
+sentinel_ai
+vpn_agent
+git_autosync        # this tool itself (synced once it has a GitHub remote)
+
+# Leave out any repo that still has secrets committed in its history, until the
+# secrets are removed and the history is cleaned. Even if such a repo is added
+# early, the history scan will keep blocking it — by design.
