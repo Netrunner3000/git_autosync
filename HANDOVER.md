@@ -175,5 +175,17 @@ Add a pytest for `runner.py`'s output parser (feed sample stdout, assert it extr
 ## 12. Open decisions to confirm with the user
 
 - App install destination: `/Applications` vs `~/Applications` vs run-from-`dist`.
+  **Resolved:** `/Applications`.
 - Whether to also add scheduling (launchd nightly) now or leave as backlog.
+  **Resolved:** built — see the GUI's **Schedule sync...** dialog and
+  `app/scheduler.py` (supports both fixed-interval and daily-at-a-time launchd
+  jobs, not just nightly).
 - Code signing: ad-hoc (right-click→Open) vs the user has a Developer ID for notarization.
+  **Resolved:** ad-hoc only, no Developer ID — not worth $99/year for a
+  personal single-machine tool.
+
+This handover doc reflects the original spec and design rationale; for the
+current feature set and usage, see `README.md`, which is kept up to date as
+the source of truth for what's actually built (it now also covers
+`--create-remote`, the last-sync state file, and every GUI control added
+since this handover was written).
