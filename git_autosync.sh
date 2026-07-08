@@ -12,6 +12,10 @@
 #     ./git_autosync.sh              # sync everything in the config
 #     ./git_autosync.sh --dry-run    # scan + report only, never commit/push
 #     ./git_autosync.sh --repo NAME  # just one repo from the config
+#     ./git_autosync.sh --repo NAME --create-remote public|private
+#                                     # for a repo with no GitHub remote yet:
+#                                     # gate it first, then create the GitHub
+#                                     # repo and push, instead of skipping.
 #
 #  Config file:  autosync_repos.txt  (one repo per line; name, ~path or /path)
 #  Logs:         logs/autosync_YYYYMMDD.log
@@ -20,21 +24,35 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${AUTOSYNC_CONFIG:-$SCRIPT_DIR/autosync_repos.txt}"
-LOG_DIR="$SCRIPT_DIR/logs"
+LOG_DIR="${AUTOSYNC_LOG_DIR:-$SCRIPT_DIR/logs}"
+STATE_DIR="${AUTOSYNC_STATE_DIR:-$SCRIPT_DIR}"
 LAB_ACTIVE="${LAB_ACTIVE:-$HOME/Documents/lab/active}"
 GITLEAKS="${GITLEAKS_CMD:-gitleaks}"
+GH="${GH_CMD:-gh}"
 DRY_RUN=0
 ONLY=""
+CREATE_REMOTE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --repo)    ONLY="${2:-}"; shift ;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    --create-remote) CREATE_REMOTE="${2:-}"; shift ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1"; exit 2 ;;
   esac
   shift
 done
+
+if [ -n "$CREATE_REMOTE" ]; then
+  case "$CREATE_REMOTE" in
+    public|private) ;;
+    *) echo "--create-remote must be 'public' or 'private', got: $CREATE_REMOTE"; exit 2 ;;
+  esac
+  if [ -z "$ONLY" ]; then
+    echo "--create-remote requires --repo NAME (only create one remote at a time)"; exit 2
+  fi
+fi
 
 mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/autosync_$(date +%Y%m%d).log"
@@ -52,6 +70,11 @@ if ! command -v "$GITLEAKS" >/dev/null 2>&1; then
 fi
 log "gitleaks: $("$GITLEAKS" version 2>/dev/null | head -1)"
 
+if [ -n "$CREATE_REMOTE" ] && ! command -v "$GH" >/dev/null 2>&1; then
+  log "ERROR: gh (GitHub CLI) not found on PATH. Needed for --create-remote."
+  exit 1
+fi
+
 if [ ! -f "$CONFIG" ]; then
   log "ERROR: config file not found: $CONFIG"
   exit 1
@@ -68,19 +91,23 @@ resolve_repo(){
 
 # Run a gitleaks scan. Returns: 0 = clean, 1 = LEAK found, 2 = tool error.
 # Tries modern subcommand first, falls back to legacy for older gitleaks.
+# --verbose prints File:/RuleID:/Line: per finding (secret value still
+# redacted) so the GUI can show *what* tripped the gate without opening the
+# log file. Piped through tee (not >>) so it also reaches stdout — pipefail
+# (set above) keeps gitleaks' real exit code, not tee's.
 scan_staged(){
   local dir="$1" rc
-  "$GITLEAKS" git --staged --no-banner --redact "$dir" >>"$LOG" 2>&1; rc=$?
+  "$GITLEAKS" git --staged --no-banner --redact --verbose "$dir" 2>&1 | tee -a "$LOG"; rc=$?
   if [ $rc -ge 2 ]; then
-    "$GITLEAKS" protect --staged --no-banner --redact --source "$dir" >>"$LOG" 2>&1; rc=$?
+    "$GITLEAKS" protect --staged --no-banner --redact --verbose --source "$dir" 2>&1 | tee -a "$LOG"; rc=$?
   fi
   return $rc
 }
 scan_history(){
   local dir="$1" rc
-  "$GITLEAKS" git --no-banner --redact "$dir" >>"$LOG" 2>&1; rc=$?
+  "$GITLEAKS" git --no-banner --redact --verbose "$dir" 2>&1 | tee -a "$LOG"; rc=$?
   if [ $rc -ge 2 ]; then
-    "$GITLEAKS" detect --no-banner --redact --source "$dir" >>"$LOG" 2>&1; rc=$?
+    "$GITLEAKS" detect --no-banner --redact --verbose --source "$dir" 2>&1 | tee -a "$LOG"; rc=$?
   fi
   return $rc
 }
@@ -90,7 +117,7 @@ N_SYNCED=0; N_BLOCKED=0; N_SKIP=0; N_NOOP=0; N_ERR=0
 
 process_repo(){
   local entry="$1"
-  local dir name branch rc
+  local dir name branch rc needs_create=0
   dir="$(resolve_repo "$entry")"
   name="$(basename "$dir")"
   rule
@@ -104,8 +131,13 @@ process_repo(){
   cd "$dir" || { log "  SKIP: cannot cd"; SUMMARY+=("SKIP    $name  (cd failed)"); N_SKIP=$((N_SKIP+1)); return; }
 
   if ! git remote get-url origin >/dev/null 2>&1; then
-    log "  SKIP: no 'origin' remote (run the GitHub setup script first)"
-    SUMMARY+=("SKIP    $name  (no GitHub remote)"); N_SKIP=$((N_SKIP+1)); return
+    if [ -n "$CREATE_REMOTE" ] && [ "$name" = "$ONLY" ]; then
+      log "  no 'origin' remote yet — will create a $CREATE_REMOTE GitHub repo after the gate clears."
+      needs_create=1
+    else
+      log "  SKIP: no 'origin' remote (run the GitHub setup script first)"
+      SUMMARY+=("SKIP    $name  (no GitHub remote)"); N_SKIP=$((N_SKIP+1)); return
+    fi
   fi
 
   git add -A
@@ -139,7 +171,10 @@ process_repo(){
   branch="${branch:-main}"
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    if git diff --cached --quiet; then
+    if [ "$needs_create" -eq 1 ]; then
+      log "  DRY-RUN: would create a $CREATE_REMOTE GitHub repo '$name' and push."
+      SUMMARY+=("OK      $name  (dry-run: would create $CREATE_REMOTE repo + push)")
+    elif git diff --cached --quiet; then
       log "  DRY-RUN: clean, nothing to commit."
       SUMMARY+=("OK      $name  (dry-run: nothing to commit)")
     else
@@ -156,6 +191,18 @@ process_repo(){
     log "  no file changes to commit."
   else
     git commit -q -m "autosync: $(ts)" && log "  committed changes."
+  fi
+
+  # ---- create the GitHub repo (first push) or push as usual ----
+  if [ "$needs_create" -eq 1 ]; then
+    if "$GH" repo create "$name" "--$CREATE_REMOTE" --source=. --remote=origin --push >>"$LOG" 2>&1; then
+      log "  created $CREATE_REMOTE GitHub repo and pushed origin/$branch."
+      SUMMARY+=("SYNCED  $name  (new $CREATE_REMOTE repo)"); N_SYNCED=$((N_SYNCED+1))
+    else
+      log "  ERROR: gh repo create failed (see log)."
+      SUMMARY+=("ERROR   $name  (repo creation failed)"); N_ERR=$((N_ERR+1))
+    fi
+    return
   fi
 
   # ---- push (covers new commit AND any earlier unpushed commits) ----
@@ -182,6 +229,19 @@ log "SUMMARY:"
 for s in "${SUMMARY[@]:-}"; do [ -n "$s" ] && log "   $s"; done
 log "synced=$N_SYNCED blocked=$N_BLOCKED skipped=$N_SKIP errors=$N_ERR noop=$N_NOOP"
 log "=== git_autosync end ==="
+
+# Record when a real (non-dry-run) run last completed, regardless of outcome,
+# plus a one-word status ("ok" / "attention") — the GUI's tray icon and the
+# scheduled background job both read these two files.
+if [ "$DRY_RUN" -eq 0 ]; then
+  mkdir -p "$STATE_DIR"
+  ts > "$STATE_DIR/last_sync.txt"
+  if [ $((N_BLOCKED + N_ERR)) -eq 0 ]; then
+    echo "ok" > "$STATE_DIR/last_status.txt"
+  else
+    echo "attention" > "$STATE_DIR/last_status.txt"
+  fi
+fi
 
 # non-zero exit if anything was blocked or errored (so failures are visible)
 [ $((N_BLOCKED + N_ERR)) -eq 0 ]
