@@ -22,6 +22,7 @@ class _DockActivateFilter(QObject):
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
+            self._window.repaint()
         return False
 
 
