@@ -471,6 +471,7 @@ class MainWindow(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+        self.repaint()
 
     def _tray_quit(self):
         if self._tray:
@@ -479,12 +480,15 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._tray and self._tray.isVisible():
-            # Ignore the close so Qt keeps the window object alive (needed for
-            # show() to work when the tray icon is clicked later). Defer hide()
-            # by one event-loop tick to avoid the macOS compositor black-screen
-            # glitch that happens when hide() is called synchronously here.
-            event.ignore()
-            QTimer.singleShot(0, self.hide)
+            event.accept()
+            # Step down from foreground so macOS restores focus to the previous
+            # app and trackpad gestures work normally. NSApp.hide_ is ⌘H
+            # programmatically — no permission prompt, no explicit activation.
+            try:
+                from AppKit import NSApplication
+                NSApplication.sharedApplication().hide_(None)
+            except Exception:
+                pass
             if not self._tray_hint_shown:
                 self._tray.showMessage(
                     "git_autosync",

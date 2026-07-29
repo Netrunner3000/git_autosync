@@ -4,6 +4,7 @@ leak-gate runs before anything is ever pushed — this dialog never pushes
 on its own."""
 import re
 import subprocess
+from pathlib import Path
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -176,8 +177,11 @@ class CreateRepoDialog(QDialog):
             return
 
         repos = config.read_repos(self.config_path)
-        if self._selected_dir not in repos:
-            repos.append(self._selected_dir)
+        # Dedup by resolved name so a bare entry like "git_autosync" and a
+        # full-path entry for the same directory don't both get added.
+        existing_names = {Path(r).name for r in repos}
+        if name not in existing_names:
+            repos.append(name)  # store bare name, not full path
             config.write_repos(self.config_path, repos)
 
         self.output_pane.clear()
