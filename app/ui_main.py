@@ -1,6 +1,9 @@
 """Main window for the git_autosync GUI."""
+import re
 import subprocess
 from datetime import datetime, timedelta
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
@@ -183,8 +186,11 @@ class MainWindow(QMainWindow):
     def _reload_repo_list(self):
         self.repo_list.clear()
         self._row_widgets = {}
+        no_remote = {p.name for p in paths.repos_without_remote()}
         for name in config.read_repos(self.config_path):
-            row = RepoRow(name, self._on_dry_run_single, self._on_sync_single)
+            publish_cb = self._on_publish_single if name in no_remote else None
+            row = RepoRow(name, self._on_dry_run_single, self._on_sync_single,
+                          on_publish=publish_cb)
             row.label.setText(self._repo_label_text(name, None))
             item = QListWidgetItem()
             item.setSizeHint(row.sizeHint())
@@ -289,7 +295,7 @@ class MainWindow(QMainWindow):
         )
 
     def _append_output(self, text: str):
-        self.output_pane.appendPlainText(text.rstrip("\n"))
+        self.output_pane.appendPlainText(_ANSI_RE.sub("", text).rstrip("\n"))
 
     def _on_finished(self, exit_code: int, summary: dict):
         self.dry_run_btn.setEnabled(True)
@@ -316,6 +322,21 @@ class MainWindow(QMainWindow):
         else:
             text = "Run finished (no summary parsed — see output)."
 
+        # Append a plain-English leak summary for any blocked repos.
+        blocked_findings = {
+            name: f for name, f in self._last_findings.items()
+            if summary["repos"].get(name, {}).get("status") == "BLOCKED"
+        }
+        if blocked_findings:
+            lines = ["", "── Leak report ─────────────────────────"]
+            for name, finding in blocked_findings.items():
+                lines.append(f"⛔ BLOCKED: {name}")
+                if finding.get("file"):
+                    rule = f"  (rule: {finding['rule']})" if finding.get("rule") else ""
+                    lines.append(f"   File:  {finding['file']}{rule}")
+            lines.append("─────────────────────────────────────────")
+            self.output_pane.appendPlainText("\n".join(lines))
+
         if exit_code != 0:
             self.summary_label.setStyleSheet(
                 "background:#f8d7da; color:#842029; padding:6px; border-radius:6px;"
@@ -333,6 +354,13 @@ class MainWindow(QMainWindow):
 
     def _on_create_repo(self):
         dialog = CreateRepoDialog(self, self.config_path, self.gitleaks_cmd)
+        dialog.exec()
+        self._reload_repo_list()
+        self._refresh_last_sync_label()
+
+    def _on_publish_single(self, name: str):
+        dialog = CreateRepoDialog(self, self.config_path, self.gitleaks_cmd,
+                                  preselect=name)
         dialog.exec()
         self._reload_repo_list()
         self._refresh_last_sync_label()
@@ -451,8 +479,12 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._tray and self._tray.isVisible():
+            # Ignore the close so Qt keeps the window object alive (needed for
+            # show() to work when the tray icon is clicked later). Defer hide()
+            # by one event-loop tick to avoid the macOS compositor black-screen
+            # glitch that happens when hide() is called synchronously here.
             event.ignore()
-            self.hide()
+            QTimer.singleShot(0, self.hide)
             if not self._tray_hint_shown:
                 self._tray.showMessage(
                     "git_autosync",
