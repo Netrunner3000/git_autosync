@@ -76,6 +76,11 @@ QListWidget::item {{
     border-bottom: 1px solid #f0f1f2;
 }}
 
+QListWidget QLabel {{
+    color: #2a2e32;
+    background: transparent;
+}}
+
 QPlainTextEdit {{
     background: #1e1f22;
     color: #d8dadc;

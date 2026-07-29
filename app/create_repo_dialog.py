@@ -2,6 +2,7 @@
 have one yet. Reuses git_autosync.sh's --create-remote mode so the same
 leak-gate runs before anything is ever pushed — this dialog never pushes
 on its own."""
+import re
 import subprocess
 
 from PySide6.QtWidgets import (
@@ -25,12 +26,13 @@ BROWSE_SENTINEL = "Browse for another folder…"
 
 
 class CreateRepoDialog(QDialog):
-    def __init__(self, parent, config_path, gitleaks_cmd: str):
+    def __init__(self, parent, config_path, gitleaks_cmd: str, preselect: str | None = None):
         super().__init__(parent)
         self.setWindowTitle("Create GitHub repo")
         self.resize(560, 480)
         self.config_path = config_path
         self.gitleaks_cmd = gitleaks_cmd
+        self._preselect = preselect
         self.runner = AutosyncRunner(self)
         self.runner.output_received.connect(self._append_output)
         self.runner.finished.connect(self._on_finished)
@@ -83,13 +85,19 @@ class CreateRepoDialog(QDialog):
     def _populate_candidates(self):
         self.project_combo.clear()
         candidates = paths.repos_without_remote()
+        preselect_index = 0
         if not candidates:
             self.project_combo.addItem("No local repos without a GitHub remote found")
             self.project_combo.setEnabled(False)
         else:
-            for d in candidates:
+            for i, d in enumerate(candidates):
                 self.project_combo.addItem(d.name, str(d))
+                if self._preselect and d.name == self._preselect:
+                    preselect_index = i
         self.project_combo.addItem(BROWSE_SENTINEL)
+        if self._preselect:
+            self.project_combo.setCurrentIndex(preselect_index)
+            self._on_project_changed(preselect_index)
 
     def _on_project_changed(self, index: int):
         text = self.project_combo.currentText()
@@ -183,7 +191,8 @@ class CreateRepoDialog(QDialog):
         )
 
     def _append_output(self, text: str):
-        self.output_pane.appendPlainText(text.rstrip("\n"))
+        clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", text)
+        self.output_pane.appendPlainText(clean.rstrip("\n"))
 
     def _on_finished(self, exit_code: int, summary: dict):
         self.create_btn.setEnabled(True)
