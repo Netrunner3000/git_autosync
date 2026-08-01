@@ -5,10 +5,9 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWi
 
 
 class RepoRow(QWidget):
-    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None):
+    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None):
         super().__init__()
         self.name = name
-        self._has_remote = on_publish is None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 4)
@@ -24,9 +23,9 @@ class RepoRow(QWidget):
 
         if on_publish is not None:
             self.sync_btn = None
+            self.privacy_btn = None
             self.publish_btn = QPushButton("Publish to GitHub…")
             self.publish_btn.setProperty("class", "rowButton")
-            self.publish_btn.setToolTip(f"Create a GitHub repo for {name} and push (leak-gated).")
             self.publish_btn.clicked.connect(lambda: on_publish(name))
             layout.addWidget(self.publish_btn)
         else:
@@ -36,16 +35,22 @@ class RepoRow(QWidget):
             self.sync_btn.clicked.connect(lambda: on_sync(name))
             layout.addWidget(self.sync_btn)
 
+            self.privacy_btn = QPushButton("Privacy…")
+            self.privacy_btn.setProperty("class", "rowButton")
+            self.privacy_btn.clicked.connect(lambda: on_privacy(name))
+            layout.addWidget(self.privacy_btn)
+
     def set_buttons_enabled(self, enabled: bool):
         self.dry_run_btn.setEnabled(enabled)
         if self.sync_btn:
             self.sync_btn.setEnabled(enabled)
         if self.publish_btn:
             self.publish_btn.setEnabled(enabled)
+        if self.privacy_btn:
+            self.privacy_btn.setEnabled(enabled)
 
     def set_tooltips(self, enabled: bool):
-        text_dry = f"Dry-run just {self.name}." if enabled else ""
-        self.dry_run_btn.setToolTip(text_dry)
+        self.dry_run_btn.setToolTip(f"Dry-run just {self.name}." if enabled else "")
         if self.sync_btn:
             self.sync_btn.setToolTip(
                 f"Sync just {self.name} (after the leak-gate clears it)." if enabled else ""
@@ -53,4 +58,8 @@ class RepoRow(QWidget):
         if self.publish_btn:
             self.publish_btn.setToolTip(
                 f"Create a GitHub repo for {self.name} and push (leak-gated)." if enabled else ""
+            )
+        if self.privacy_btn:
+            self.privacy_btn.setToolTip(
+                f"Toggle {self.name} between public and private on GitHub." if enabled else ""
             )

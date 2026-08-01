@@ -189,8 +189,9 @@ class MainWindow(QMainWindow):
         no_remote = {p.name for p in paths.repos_without_remote()}
         for name in config.read_repos(self.config_path):
             publish_cb = self._on_publish_single if name in no_remote else None
+            privacy_cb = None if name in no_remote else self._on_privacy_single
             row = RepoRow(name, self._on_dry_run_single, self._on_sync_single,
-                          on_publish=publish_cb)
+                          on_publish=publish_cb, on_privacy=privacy_cb)
             row.label.setText(self._repo_label_text(name, None))
             item = QListWidgetItem()
             item.setSizeHint(row.sizeHint())
@@ -357,6 +358,64 @@ class MainWindow(QMainWindow):
         dialog.exec()
         self._reload_repo_list()
         self._refresh_last_sync_label()
+
+    def _on_privacy_single(self, name: str):
+        gh = paths.find_gh()
+        if not gh:
+            QMessageBox.warning(self, "gh not found",
+                                "Install the GitHub CLI first: brew install gh")
+            return
+
+        # Resolve the authenticated GitHub login, then fetch visibility.
+        try:
+            login_result = subprocess.run(
+                [gh, "api", "user", "--jq", ".login"],
+                capture_output=True, text=True, timeout=10,
+            )
+            login = login_result.stdout.strip()
+            if not login:
+                QMessageBox.warning(self, "Not authenticated",
+                                    "Run 'gh auth login' to authenticate the GitHub CLI.")
+                return
+            result = subprocess.run(
+                [gh, "api", f"repos/{login}/{name}", "--jq", ".visibility"],
+                capture_output=True, text=True, timeout=10,
+            )
+            current = result.stdout.strip().lower()  # "public" or "private"
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not fetch repo visibility:\n{e}")
+            return
+
+        if current not in ("public", "private"):
+            QMessageBox.warning(self, "Error",
+                                f"Unexpected visibility value: '{current}'\n"
+                                "Make sure you're authenticated with gh.")
+            return
+
+        target = "private" if current == "public" else "public"
+        reply = QMessageBox.question(
+            self,
+            "Change repo visibility",
+            f"'{name}' is currently {current.upper()}.\n\n"
+            f"Make it {target.upper()}?",
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            result = subprocess.run(
+                [gh, "repo", "edit", f"{login}/{name}", "--visibility", target,
+                 "--accept-visibility-change-consequences"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if result.returncode == 0:
+                QMessageBox.information(self, "Done",
+                                        f"'{name}' is now {target.upper()}.")
+            else:
+                QMessageBox.warning(self, "Failed",
+                                    f"gh repo edit failed:\n{result.stderr.strip()}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e))
 
     def _on_publish_single(self, name: str):
         dialog = CreateRepoDialog(self, self.config_path, self.gitleaks_cmd,
