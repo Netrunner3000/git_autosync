@@ -13,8 +13,9 @@ COUNTS_RE = re.compile(
     r"synced=(\d+)\s+blocked=(\d+)\s+skipped=(\d+)\s+errors=(\d+)\s+noop=(\d+)"
 )
 REPO_HEADER_RE = re.compile(r"REPO: (\S+)")
-FILE_RE = re.compile(r"^File:\s*(.+)$")
-RULE_RE = re.compile(r"^RuleID:\s*(.+)$")
+FILE_RE        = re.compile(r"^File:\s*(.+)$")
+RULE_RE        = re.compile(r"^RuleID:\s*(.+)$")
+FINGERPRINT_RE = re.compile(r"^Fingerprint:\s*(.+)$")
 
 
 def parse_summary(text: str) -> dict:
@@ -54,25 +55,28 @@ def parse_summary(text: str) -> dict:
     # track both independently rather than assuming an order.
     findings = {}
     current_repo = None
-    pending_file = None
-    pending_rule = None
+    pending_file = pending_rule = pending_fp = None
     for line in text.splitlines():
         header = REPO_HEADER_RE.search(line)
         if header:
             current_repo = header.group(1)
-            pending_file = None
-            pending_rule = None
+            pending_file = pending_rule = pending_fp = None
             continue
         if current_repo is None or current_repo in findings:
             continue
-        file_m = FILE_RE.match(line.strip())
-        if file_m:
-            pending_file = file_m.group(1).strip()
-        rule_m = RULE_RE.match(line.strip())
-        if rule_m:
-            pending_rule = rule_m.group(1).strip()
+        s = line.strip()
+        if m := FILE_RE.match(s):
+            pending_file = m.group(1).strip()
+        if m := RULE_RE.match(s):
+            pending_rule = m.group(1).strip()
+        if m := FINGERPRINT_RE.match(s):
+            pending_fp = m.group(1).strip()
         if pending_file is not None and pending_rule is not None:
-            findings[current_repo] = {"file": pending_file, "rule": pending_rule}
+            findings[current_repo] = {
+                "file": pending_file,
+                "rule": pending_rule,
+                "fingerprint": pending_fp,
+            }
 
     return {"repos": repos, "counts": counts, "findings": findings}
 
@@ -97,6 +101,7 @@ class AutosyncRunner(QObject):
         config_path: Path,
         gitleaks_cmd: str,
         create_remote: str | None = None,
+        commit_message: str | None = None,
     ):
         if self.is_running():
             return
@@ -120,6 +125,8 @@ class AutosyncRunner(QObject):
         env.insert("GITLEAKS_CMD", gitleaks_cmd)
         if create_remote:
             env.insert("GH_CMD", paths.find_gh() or "gh")
+        if commit_message:
+            env.insert("AUTOSYNC_COMMIT_MSG", commit_message)
         process.setProcessEnvironment(env)
 
         process.readyReadStandardOutput.connect(self._on_stdout)
