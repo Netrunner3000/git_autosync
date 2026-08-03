@@ -190,7 +190,7 @@ process_repo(){
   if git diff --cached --quiet; then
     log "  no file changes to commit."
   else
-    git commit -q -m "autosync: $(ts)" && log "  committed changes."
+    git commit -q -m "${AUTOSYNC_COMMIT_MSG:-autosync: $(ts)}" && log "  committed changes."
   fi
 
   # ---- create the GitHub repo (first push) or push as usual ----
