@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
         self.output_pane = QPlainTextEdit()
         self.output_pane.setReadOnly(True)
         self.output_pane.setMaximumBlockCount(5000)
-        self.output_pane.setFixedHeight(160)
+        self.output_pane.setFixedHeight(240)
         root.addWidget(self.output_pane)
 
         # ── Status bar ─────────────────────────────────────────────
