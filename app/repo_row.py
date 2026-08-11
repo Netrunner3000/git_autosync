@@ -1,8 +1,9 @@
-"""A single row in the repo list with a colored status badge and per-repo actions."""
+"""A single row in the repo list with checkbox, status badge, time label, and actions."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import (
+    QCheckBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget,
+)
 
-# (bg, fg) per status
 _BADGE = {
     "SYNCED":  ("#D1F2DC", "#1A7A3A", "✓ Synced"),
     "BLOCKED": ("#FFE5E3", "#C0392B", "✕ Blocked"),
@@ -10,8 +11,9 @@ _BADGE = {
     "ERROR":   ("#FFF0E0", "#B45309", "⚠ Error"),
     "OK":      ("#F0F0F5", "#6E6E73", "No changes"),
 }
-_STALE_STYLE  = "background:#FFF8E7; color:#92400E; border-radius:5px; padding:2px 7px; font-size:11px; font-weight:600;"
-_EMPTY_STYLE  = "background:transparent;"
+_TIME_STYLE  = "color:#6E6E73; font-size:11px;"
+_STALE_STYLE = "background:#FFF8E7; color:#92400E; border-radius:5px; padding:2px 7px; font-size:11px; font-weight:600;"
+_EMPTY_STYLE = "background:transparent;"
 
 
 class RepoRow(QWidget):
@@ -21,13 +23,26 @@ class RepoRow(QWidget):
         self._status = None
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 6, 10, 6)
+        layout.setContentsMargins(8, 6, 10, 6)
         layout.setSpacing(8)
+
+        # Selection checkbox
+        self.checkbox = QCheckBox()
+        self.checkbox.setChecked(True)
+        self.checkbox.setToolTip("Include in bulk Dry-run / Sync now")
+        layout.addWidget(self.checkbox)
 
         self.label = QLabel(name)
         self.label.setObjectName("repoName")
         self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         layout.addWidget(self.label, stretch=1)
+
+        # Last-synced time (subtle, always shown when known)
+        self.time_label = QLabel()
+        self.time_label.setFixedWidth(72)
+        self.time_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.time_label.setStyleSheet(_EMPTY_STYLE)
+        layout.addWidget(self.time_label)
 
         # Colored status badge — hidden until first run
         self.badge = QLabel()
@@ -35,11 +50,6 @@ class RepoRow(QWidget):
         self.badge.setAlignment(Qt.AlignCenter)
         self.badge.setStyleSheet(_EMPTY_STYLE)
         layout.addWidget(self.badge)
-
-        # Stale indicator — shown when not recently synced
-        self.stale_label = QLabel()
-        self.stale_label.setStyleSheet(_EMPTY_STYLE)
-        layout.addWidget(self.stale_label)
 
         self.dry_run_btn = QPushButton("Dry-run")
         self.dry_run_btn.setProperty("class", "rowButton")
@@ -67,8 +77,10 @@ class RepoRow(QWidget):
 
     # ── public API ────────────────────────────────────────────────
 
+    def is_checked(self) -> bool:
+        return self.checkbox.isChecked()
+
     def set_status(self, status: str | None):
-        """Update the colored badge. Pass None to clear."""
         self._status = status
         if status and status in _BADGE:
             bg, fg, text = _BADGE[status]
@@ -81,17 +93,27 @@ class RepoRow(QWidget):
             self.badge.setText("")
             self.badge.setStyleSheet(_EMPTY_STYLE)
 
-    def set_stale(self, days: int | None):
-        """Show a stale indicator. days=None means never synced."""
-        if days is None:
-            self.stale_label.setText("Never synced")
-            self.stale_label.setStyleSheet(_STALE_STYLE)
-        elif days >= 3:
-            self.stale_label.setText(f"🕒 {days}d ago")
-            self.stale_label.setStyleSheet(_STALE_STYLE)
+    def set_time(self, time_str: str | None, stale: bool = False):
+        """Show last-synced time. Amber pill if stale, subtle grey if recent."""
+        if time_str is None:
+            self.time_label.setText("never")
+            self.time_label.setStyleSheet(_STALE_STYLE)
+        elif stale:
+            self.time_label.setText(time_str)
+            self.time_label.setStyleSheet(_STALE_STYLE)
         else:
-            self.stale_label.setText("")
-            self.stale_label.setStyleSheet(_EMPTY_STYLE)
+            self.time_label.setText(time_str)
+            self.time_label.setStyleSheet(_TIME_STYLE)
+
+    def set_stale(self, days: int | None):
+        """Legacy shim — callers that pass days still work."""
+        if days is None or days < 0:
+            self.time_label.setText("")
+            self.time_label.setStyleSheet(_EMPTY_STYLE)
+        elif days == 0:
+            self.set_time("today", stale=False)
+        else:
+            self.set_time(f"{days}d ago", stale=days >= 3)
 
     def set_buttons_enabled(self, enabled: bool):
         self.dry_run_btn.setEnabled(enabled)
