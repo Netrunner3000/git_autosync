@@ -51,6 +51,27 @@ def days_since_synced(repo_name: str) -> int | None:
     return (datetime.now() - last).days
 
 
+def time_since_synced(repo_name: str) -> str | None:
+    """Human-readable 'just now / 5m ago / 2h ago / 3d ago'. None if never synced."""
+    data = read_all()
+    stamp = data.get(repo_name)
+    if not stamp:
+        return None
+    try:
+        last = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    delta = datetime.now() - last
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 90:
+        return "just now"
+    if total_seconds < 3600:
+        return f"{total_seconds // 60}m ago"
+    if total_seconds < 86400:
+        return f"{total_seconds // 3600}h ago"
+    return f"{delta.days}d ago"
+
+
 def is_stale(repo_name: str) -> bool:
     days = days_since_synced(repo_name)
     return days is None or days >= STALE_AFTER_DAYS

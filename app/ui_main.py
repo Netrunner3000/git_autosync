@@ -57,7 +57,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("git_autosync")
-        self.resize(820, 660)
+        self.setMinimumSize(700, 500)
+        self.resize(860, 700)
 
         self.config_path = paths.user_config_path()
         self.runner = AutosyncRunner(self)
@@ -103,6 +104,18 @@ class MainWindow(QMainWindow):
         repos_lbl.setObjectName("sectionLabel")
         repos_header.addWidget(repos_lbl)
         repos_header.addStretch(1)
+        self.select_all_btn = QPushButton("All")
+        self.select_all_btn.setProperty("class", "rowButton")
+        self.select_all_btn.setFixedWidth(38)
+        self.select_all_btn.setToolTip("Select all repos")
+        self.select_all_btn.clicked.connect(lambda: self._set_all_checked(True))
+        self.select_none_btn = QPushButton("None")
+        self.select_none_btn.setProperty("class", "rowButton")
+        self.select_none_btn.setFixedWidth(44)
+        self.select_none_btn.setToolTip("Deselect all repos")
+        self.select_none_btn.clicked.connect(lambda: self._set_all_checked(False))
+        repos_header.addWidget(self.select_all_btn)
+        repos_header.addWidget(self.select_none_btn)
         self.edit_btn = QPushButton("Edit list")
         self.edit_btn.clicked.connect(self._on_edit_repo_list)
         repos_header.addWidget(self.edit_btn)
@@ -166,8 +179,8 @@ class MainWindow(QMainWindow):
         self.output_pane = QPlainTextEdit()
         self.output_pane.setReadOnly(True)
         self.output_pane.setMaximumBlockCount(5000)
-        self.output_pane.setFixedHeight(240)
-        root.addWidget(self.output_pane)
+        self.output_pane.setMinimumHeight(120)
+        root.addWidget(self.output_pane, stretch=1)
 
         # ── Status bar ─────────────────────────────────────────────
         self.last_sync_label = QLabel()
@@ -229,10 +242,8 @@ class MainWindow(QMainWindow):
             privacy_cb = None if name in no_remote else self._on_privacy_single
             row = RepoRow(name, self._on_dry_run_single, self._on_sync_single,
                           on_publish=publish_cb, on_privacy=privacy_cb)
-            # Restore stale state
-            days = repo_state.days_since_synced(name)
-            if repo_state.is_stale(name):
-                row.set_stale(days)
+            time_str = repo_state.time_since_synced(name)
+            row.set_time(time_str, stale=repo_state.is_stale(name))
             item = QListWidgetItem()
             item.setSizeHint(row.sizeHint())
             item.setData(Qt.UserRole, name)
@@ -240,6 +251,15 @@ class MainWindow(QMainWindow):
             self.repo_list.setItemWidget(item, row)
             self._row_widgets[name] = row
         self._apply_tooltips(self.tooltips_btn.isChecked())
+
+    def _set_all_checked(self, checked: bool):
+        for row in self._row_widgets.values():
+            row.checkbox.setChecked(checked)
+
+    def _checked_repos(self) -> list[str]:
+        """Names of repos whose checkbox is ticked. Falls back to all if none ticked."""
+        checked = [n for n, r in self._row_widgets.items() if r.is_checked()]
+        return checked if checked else list(self._row_widgets.keys())
 
     def _set_all_row_buttons_enabled(self, enabled: bool):
         for row in self._row_widgets.values():
@@ -261,11 +281,16 @@ class MainWindow(QMainWindow):
 
     # ── Diff preview ──────────────────────────────────────────────
 
-    def _diff_preview(self, repo: str | None = None) -> str:
+    def _diff_preview(self, repo: str | None = None, repos: list | None = None) -> str:
         """Return a git status --short summary for repos that have changes."""
         git = paths.find_git() or "git"
         lab = paths.lab_active_dir()
-        names = [repo] if repo else config.read_repos(self.config_path)
+        if repo:
+            names = [repo]
+        elif repos is not None:
+            names = repos
+        else:
+            names = config.read_repos(self.config_path)
         lines = []
         for name in names:
             raw = name
@@ -287,22 +312,32 @@ class MainWindow(QMainWindow):
     # ── Actions ───────────────────────────────────────────────────
 
     def _on_dry_run(self):
-        self._run(dry_run=True)
+        repos = self._checked_repos()
+        if len(repos) == len(self._row_widgets):
+            self._run(dry_run=True)
+        else:
+            # Run each checked repo sequentially via a single invocation isn't
+            # possible with the current engine (one --repo at a time), so for
+            # a subset we just run all and filter visually — or run per-repo.
+            # Simplest correct approach: run all but only show status for checked.
+            self._run(dry_run=True, repos=repos)
 
     def _on_sync(self):
         if not paths.find_gitleaks():
             QMessageBox.warning(self, "gitleaks missing",
                                 "Install gitleaks before running a real sync.")
             return
-        preview = self._diff_preview()
+        repos = self._checked_repos()
+        preview = self._diff_preview(repos=repos)
+        scope = "selected repos" if len(repos) < len(self._row_widgets) else "all repos"
         detail = f"\n\nPending changes:\n{preview}" if preview else "\n\nNo uncommitted changes found."
         reply = QMessageBox.question(
             self, "Confirm sync",
-            "Commit and push changes for all repos (after leak-gate clears each one)."
+            f"Commit and push changes for {scope} (after leak-gate clears each one)."
             + detail,
         )
         if reply == QMessageBox.Yes:
-            self._run(dry_run=False)
+            self._run(dry_run=False, repos=repos)
 
     def _on_dry_run_single(self, name: str):
         self._run(dry_run=True, repo=name)
@@ -321,23 +356,84 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.Yes:
             self._run(dry_run=False, repo=name)
 
-    def _run(self, *, dry_run: bool, repo: str | None = None):
+    def _run(self, *, dry_run: bool, repo: str | None = None, repos: list | None = None):
         if self.runner.is_running():
             return
         self._current_dry_run = dry_run
         self._current_single_repo = repo
+        self._current_repos = repos  # None means all
         self.output_pane.clear()
         self.summary_label.hide()
         self.dry_run_btn.setEnabled(False)
         self.sync_btn.setEnabled(False)
         self._set_all_row_buttons_enabled(False)
+        # For a subset of repos, run them sequentially via --repo flag.
+        # For a single repo or all repos, use existing path.
+        if repos is not None and len(repos) == 1:
+            repo = repos[0]
+            repos = None
+        if repos is not None and len(repos) < len(self._row_widgets):
+            self._run_subset(dry_run=dry_run, repos=repos)
+        else:
+            self.runner.start(
+                dry_run=dry_run,
+                repo=repo,
+                config_path=self.config_path,
+                gitleaks_cmd=self.gitleaks_cmd,
+                commit_message=self.msg_field.text().strip() or None,
+            )
+
+    def _run_subset(self, *, dry_run: bool, repos: list[str]):
+        """Run the engine once per selected repo, collecting all output."""
+        self._subset_repos = list(repos)
+        self._subset_index = 0
+        self._subset_dry_run = dry_run
+        self._subset_summaries: list[dict] = []
+        self._run_next_subset()
+
+    def _run_next_subset(self):
+        if self._subset_index >= len(self._subset_repos):
+            self._finish_subset()
+            return
+        repo = self._subset_repos[self._subset_index]
+        self._subset_index += 1
         self.runner.start(
-            dry_run=dry_run,
+            dry_run=self._subset_dry_run,
             repo=repo,
             config_path=self.config_path,
             gitleaks_cmd=self.gitleaks_cmd,
             commit_message=self.msg_field.text().strip() or None,
         )
+        # Temporarily override finished handler for subset mode
+        try:
+            self.runner.finished.disconnect(self._on_finished)
+        except RuntimeError:
+            pass
+        self.runner.finished.connect(self._on_subset_repo_finished)
+
+    def _on_subset_repo_finished(self, exit_code: int, summary: dict):
+        self._subset_summaries.append(summary)
+        try:
+            self.runner.finished.disconnect(self._on_subset_repo_finished)
+        except RuntimeError:
+            pass
+        self.runner.finished.connect(self._on_finished)
+        self._run_next_subset()
+
+    def _finish_subset(self):
+        # Merge summaries
+        merged_repos = {}
+        merged_counts = {"synced": 0, "blocked": 0, "skipped": 0, "errors": 0, "noop": 0}
+        merged_findings = {}
+        worst_exit = 0
+        for s in self._subset_summaries:
+            merged_repos.update(s.get("repos", {}))
+            merged_findings.update(s.get("findings", {}))
+            c = s.get("counts") or {}
+            for k in merged_counts:
+                merged_counts[k] += c.get(k, 0)
+        merged = {"repos": merged_repos, "counts": merged_counts, "findings": merged_findings}
+        self._on_finished(worst_exit, merged)
 
     def _append_output(self, text: str):
         self.output_pane.appendPlainText(_ANSI_RE.sub("", text).rstrip("\n"))
@@ -354,18 +450,13 @@ class MainWindow(QMainWindow):
 
         self._last_findings = summary.get("findings", {})
 
-        # Update row badges and stale indicators
+        # Update row badges and time labels
         for name, row in self._row_widgets.items():
             info = summary["repos"].get(name)
             if info:
                 row.set_status(info["status"])
-            days = repo_state.days_since_synced(name)
-            if info and info["status"] == "SYNCED":
-                row.set_stale(-1)  # just synced → clear stale
-            elif repo_state.is_stale(name):
-                row.set_stale(days)
-            else:
-                row.set_stale(-1)
+            time_str = repo_state.time_since_synced(name)
+            row.set_time(time_str, stale=repo_state.is_stale(name))
 
         # Leak report in output pane
         blocked = {n: f for n, f in self._last_findings.items()
