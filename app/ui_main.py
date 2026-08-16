@@ -624,6 +624,45 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Not found", f"Could not find repo directory for '{name}'.")
             return
         finding = self._last_findings.get(name)
+
+        if finding and finding.get("file"):
+            # Triage: real secret or false positive?
+            loc = finding["file"]
+            if finding.get("line"):
+                loc += f":{finding['line']}"
+            rule = finding.get("rule", "unknown rule")
+            msg = (
+                f"<b>{name}</b> is blocked by gitleaks.<br><br>"
+                f"Finding: <code>{loc}</code> &nbsp;·&nbsp; rule: <code>{rule}</code><br><br>"
+                "Is this a <b>real secret</b> that needs to be removed, "
+                "or a <b>false positive</b> that should be ignored?"
+            )
+            box = QMessageBox(self)
+            box.setWindowTitle("Blocked repo — what would you like to do?")
+            box.setTextFormat(Qt.RichText)
+            box.setText(msg)
+            real_btn  = box.addButton("Open file to fix secret", QMessageBox.AcceptRole)
+            false_btn = box.addButton("It's a false positive — allowlist it", QMessageBox.ActionRole)
+            box.addButton("Cancel", QMessageBox.RejectRole)
+            box.exec()
+            clicked = box.clickedButton()
+            if clicked is real_btn:
+                # Open the file in the default editor; use 'open -t' which respects
+                # the system default text editor (same as double-clicking in Finder).
+                file_path = repo_path / finding["file"]
+                subprocess.run(["open", "-t", str(file_path)])
+                QMessageBox.information(
+                    self, "File opened",
+                    f"Opened {finding['file']} in your default text editor.\n\n"
+                    f"Remove or replace the secret on line {finding.get('line', '?')}, "
+                    "then run a dry-run to confirm gitleaks no longer flags this repo."
+                )
+                return
+            elif clicked is false_btn:
+                pass  # fall through to IgnoreDialog
+            else:
+                return  # Cancel
+
         dialog = IgnoreDialog(self, repo_path, finding=finding)
         dialog.exec()
 
