@@ -52,6 +52,35 @@ TOOLTIPS = {
     "msg_field":      "Optional: set a custom commit message instead of the default timestamp one.",
 }
 
+_GIT_STATUS_CODES = {
+    "M ": "modified",
+    " M": "modified (unstaged)",
+    "MM": "modified (staged + unstaged)",
+    "A ": "new file",
+    "AM": "new file (modified)",
+    "D ": "deleted",
+    " D": "deleted (unstaged)",
+    "R ": "renamed",
+    "C ": "copied",
+    "??": "untracked",
+    "!!": "ignored",
+    "UU": "conflict",
+}
+
+
+def _format_git_status(raw: str) -> str:
+    """Convert git status --short output into human-readable lines."""
+    out = []
+    for line in raw.splitlines():
+        if len(line) >= 3 and line[2] == " ":
+            code = line[:2]
+            path = line[3:]
+            label = _GIT_STATUS_CODES.get(code, code.strip())
+            out.append(f"  {label}: {path}")
+        else:
+            out.append(f"  {line}")
+    return "\n".join(out)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -241,7 +270,8 @@ class MainWindow(QMainWindow):
             publish_cb = self._on_publish_single if name in no_remote else None
             privacy_cb = None if name in no_remote else self._on_privacy_single
             row = RepoRow(name, self._on_dry_run_single, self._on_sync_single,
-                          on_publish=publish_cb, on_privacy=privacy_cb)
+                          on_publish=publish_cb, on_privacy=privacy_cb,
+                          on_ignore=self._on_open_ignore)
             time_str = repo_state.time_since_synced(name)
             row.set_time(time_str, stale=repo_state.is_stale(name))
             item = QListWidgetItem()
@@ -306,7 +336,8 @@ class MainWindow(QMainWindow):
             )
             stat = result.stdout.strip()
             if stat:
-                lines.append(f"{name}:\n{stat}")
+                formatted = _format_git_status(stat)
+                lines.append(f"{name}:\n{formatted}")
         return "\n\n".join(lines) if lines else ""
 
     # ── Actions ───────────────────────────────────────────────────
@@ -466,12 +497,15 @@ class MainWindow(QMainWindow):
             for name, f in blocked.items():
                 lines.append(f"⛔  {name}")
                 if f.get("file"):
-                    rule = f"  rule: {f['rule']}" if f.get("rule") else ""
-                    lines.append(f"     File: {f['file']}{rule}")
+                    loc = f['file']
+                    if f.get("line"):
+                        loc += f":{f['line']}"
+                    rule = f"  ({f['rule']})" if f.get("rule") else ""
+                    lines.append(f"     {loc}{rule}")
                 if f.get("fingerprint"):
                     lines.append(f"     Fingerprint: {f['fingerprint']}")
             lines.append("─────────────────────────────────────────────")
-            lines.append("Use the 'Ignore' button on the repo row to whitelist false positives.")
+            lines.append("If this is a false positive, click 'Ignore…' on the repo row to allowlist it.")
             self.output_pane.appendPlainText("\n".join(lines))
 
         # Update "Ignore" button availability on blocked rows (via privacy_btn slot reuse

@@ -16,6 +16,7 @@ REPO_HEADER_RE = re.compile(r"REPO: (\S+)")
 FILE_RE        = re.compile(r"^File:\s*(.+)$")
 RULE_RE        = re.compile(r"^RuleID:\s*(.+)$")
 FINGERPRINT_RE = re.compile(r"^Fingerprint:\s*(.+)$")
+LINE_RE        = re.compile(r"^Line:\s*(\d+)$")
 
 
 def parse_summary(text: str) -> dict:
@@ -55,12 +56,12 @@ def parse_summary(text: str) -> dict:
     # track both independently rather than assuming an order.
     findings = {}
     current_repo = None
-    pending_file = pending_rule = pending_fp = None
+    pending_file = pending_rule = pending_fp = pending_line = None
     for line in text.splitlines():
         header = REPO_HEADER_RE.search(line)
         if header:
             current_repo = header.group(1)
-            pending_file = pending_rule = pending_fp = None
+            pending_file = pending_rule = pending_fp = pending_line = None
             continue
         if current_repo is None or current_repo in findings:
             continue
@@ -71,11 +72,14 @@ def parse_summary(text: str) -> dict:
             pending_rule = m.group(1).strip()
         if m := FINGERPRINT_RE.match(s):
             pending_fp = m.group(1).strip()
+        if m := LINE_RE.match(s):
+            pending_line = m.group(1).strip()
         if pending_file is not None and pending_rule is not None:
             findings[current_repo] = {
                 "file": pending_file,
                 "rule": pending_rule,
                 "fingerprint": pending_fp,
+                "line": pending_line,
             }
 
     return {"repos": repos, "counts": counts, "findings": findings}
