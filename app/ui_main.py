@@ -507,7 +507,7 @@ class MainWindow(QMainWindow):
                 if f.get("fingerprint"):
                     lines.append(f"     Fingerprint: {f['fingerprint']}")
             lines.append("─────────────────────────────────────────────")
-            lines.append("If this is a false positive, click 'Ignore…' on the repo row to allowlist it.")
+            lines.append("Click 'Allowlist' on the repo row for a false positive, or 'Fix leak…' to triage.")
             self.output_pane.appendPlainText("\n".join(lines))
 
         # Update "Ignore" button availability on blocked rows (via privacy_btn slot reuse
