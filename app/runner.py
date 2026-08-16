@@ -78,7 +78,9 @@ def parse_summary(text: str) -> dict:
             pending_line = m.group(1).strip()
         if m := SECRET_RE.match(s):
             pending_secret = ANSI_RE.sub("", m.group(1).strip())
-        if pending_file is not None and pending_rule is not None:
+        # Wait until Fingerprint: is seen — it appears after File:/RuleID: in
+        # gitleaks output, and the early-exit guard below would skip it otherwise.
+        if pending_file is not None and pending_rule is not None and pending_fp is not None:
             findings[current_repo] = {
                 "file": pending_file,
                 "rule": pending_rule,
