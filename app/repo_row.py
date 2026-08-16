@@ -17,7 +17,7 @@ _EMPTY_STYLE = "background:transparent;"
 
 
 class RepoRow(QWidget):
-    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None, on_ignore=None):
+    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None, on_ignore=None, on_allowlist=None):
         super().__init__()
         self.name = name
         self._status = None
@@ -76,13 +76,23 @@ class RepoRow(QWidget):
             layout.addWidget(self.privacy_btn)
 
         if on_ignore is not None:
-            self.ignore_btn = QPushButton("Ignore…")
+            self.ignore_btn = QPushButton("Fix leak…")
             self.ignore_btn.setProperty("class", "rowButton")
-            self.ignore_btn.setToolTip("Allowlist the last gitleaks finding for this repo (false positives only).")
+            self.ignore_btn.setToolTip("Triage this blocked finding: remove the secret from history, or allowlist as a false positive.")
             self.ignore_btn.clicked.connect(lambda: on_ignore(name))
             layout.addWidget(self.ignore_btn)
         else:
             self.ignore_btn = None
+
+        if on_allowlist is not None:
+            self.allowlist_btn = QPushButton("Allowlist")
+            self.allowlist_btn.setProperty("class", "rowButton")
+            self.allowlist_btn.setToolTip("One-click: add this finding's fingerprint to .gitleaksignore (false positive).")
+            self.allowlist_btn.setVisible(False)  # shown only when a finding is active
+            self.allowlist_btn.clicked.connect(lambda: on_allowlist(name))
+            layout.addWidget(self.allowlist_btn)
+        else:
+            self.allowlist_btn = None
 
     # ── public API ────────────────────────────────────────────────
 
@@ -124,12 +134,18 @@ class RepoRow(QWidget):
         else:
             self.set_time(f"{days}d ago", stale=days >= 3)
 
+    def set_blocked(self, blocked: bool):
+        """Show the Allowlist shortcut button when this repo is blocked."""
+        if self.allowlist_btn:
+            self.allowlist_btn.setVisible(blocked)
+
     def set_buttons_enabled(self, enabled: bool):
         self.dry_run_btn.setEnabled(enabled)
         if self.sync_btn:    self.sync_btn.setEnabled(enabled)
         if self.publish_btn: self.publish_btn.setEnabled(enabled)
         if self.privacy_btn: self.privacy_btn.setEnabled(enabled)
-        if self.ignore_btn:  self.ignore_btn.setEnabled(enabled)
+        if self.ignore_btn:     self.ignore_btn.setEnabled(enabled)
+        if self.allowlist_btn:  self.allowlist_btn.setEnabled(enabled)
 
     def set_tooltips(self, enabled: bool):
         self.dry_run_btn.setToolTip(f"Dry-run just {self.name}." if enabled else "")
