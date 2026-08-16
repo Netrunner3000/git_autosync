@@ -17,7 +17,7 @@ _EMPTY_STYLE = "background:transparent;"
 
 
 class RepoRow(QWidget):
-    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None):
+    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None, on_ignore=None):
         super().__init__()
         self.name = name
         self._status = None
@@ -75,6 +75,15 @@ class RepoRow(QWidget):
             self.privacy_btn.clicked.connect(lambda: on_privacy(name))
             layout.addWidget(self.privacy_btn)
 
+        if on_ignore is not None:
+            self.ignore_btn = QPushButton("Ignore…")
+            self.ignore_btn.setProperty("class", "rowButton")
+            self.ignore_btn.setToolTip("Allowlist the last gitleaks finding for this repo (false positives only).")
+            self.ignore_btn.clicked.connect(lambda: on_ignore(name))
+            layout.addWidget(self.ignore_btn)
+        else:
+            self.ignore_btn = None
+
     # ── public API ────────────────────────────────────────────────
 
     def is_checked(self) -> bool:
@@ -120,6 +129,7 @@ class RepoRow(QWidget):
         if self.sync_btn:    self.sync_btn.setEnabled(enabled)
         if self.publish_btn: self.publish_btn.setEnabled(enabled)
         if self.privacy_btn: self.privacy_btn.setEnabled(enabled)
+        if self.ignore_btn:  self.ignore_btn.setEnabled(enabled)
 
     def set_tooltips(self, enabled: bool):
         self.dry_run_btn.setToolTip(f"Dry-run just {self.name}." if enabled else "")
