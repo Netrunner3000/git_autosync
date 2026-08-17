@@ -147,6 +147,16 @@ QComboBox {{
     color: #1D1D1F;
 }}
 QComboBox::drop-down {{ border: none; }}
+QComboBox QAbstractItemView {{
+    background: white;
+    color: #1D1D1F;
+    selection-background-color: #E8F4F1;
+    selection-color: #0d6e5c;
+    border: 1px solid #D1D1D6;
+    border-radius: 7px;
+    padding: 4px;
+    outline: none;
+}}
 
 /* ── Dialog buttons ─────────────────────────────────────────── */
 QDialogButtonBox QPushButton {{
