@@ -140,18 +140,24 @@ this script and set `AUTOSYNC_CONFIG` / `AUTOSYNC_LOG_DIR` / `AUTOSYNC_STATE_DIR
 - `--create-remote` runs through the same gate before `gh repo create --push` is
   ever called — a detected secret blocks repo creation entirely, not just the push.
 
-## Handling false positives
+## Handling blocked repos
 
-If gitleaks flags something that isn't a real secret, you can add its fingerprint
-to a per-repo `.gitleaksignore` file. The GUI makes this easy:
+After a blocked run, the **Output** pane shows a **Leak report** with the flagged
+file, line number, and rule. Two quick-action buttons appear on the blocked row:
 
-1. Run a dry-run — the blocked repo's fingerprint appears in the **Output** pane.
-2. Open the app's **Ignore** dialog (from the leak report at the bottom of the
-   output pane) and click **Add last finding**.
-3. Run a dry-run again to confirm the repo is no longer blocked.
+**If it's a false positive** (a variable name, SQL column, etc. that looks like
+a secret but isn't):
+- Click **Allowlist** on the repo row — one click, adds the fingerprint to
+  `.gitleaksignore`, done.
+- Or click **Fix leak…** → choose *False positive* → same result via a dialog.
 
-Only add entries you are certain are false positives — ignoring a real secret is
-a security risk.
+**If it's a real secret** (API key, token, password accidentally committed):
+- Click **Fix leak…** → choose *Real secret — remove from online repo history*.
+- The app runs `git-filter-repo` to scrub the value from every commit and
+  force-pushes to origin. Your local files are not modified.
+- Requires `brew install git-filter-repo` if not already installed.
+
+After either action, run a dry-run to confirm the repo is unblocked.
 
 You can also manage `.gitleaksignore` by hand: one fingerprint per line, in the
 format gitleaks uses (`<commit>:<file>:<rule>:<line>`).
@@ -169,18 +175,29 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
 **Repositories section:**
 
 - **Repo list** — one row per repo in `autosync_repos.txt`. Each row shows:
+  - A **checkbox** — include or exclude this repo from bulk Dry-run / Sync now.
+    Use the **All** / **None** buttons in the header to check or clear all at once.
   - The repo name.
+  - A **last-synced time** — human-readable ("5m ago", "2h ago", "3d ago").
+    Shown as an amber pill when the repo is stale (3+ days) or has never synced.
   - A colored **status badge** after each run:
     `✓ Synced` (green) · `✕ Blocked` (red) · `⊘ Skipped` (grey) ·
     `⚠ Error` (amber) · `No changes` (grey).
-  - A **🕒 stale indicator** (amber) when the repo hasn't been synced in
-    3+ days, or has never been synced.
   - **Dry-run** button — scans just this repo, never commits or pushes.
   - **Sync** button — syncs just this repo after the leak-gate clears it.
-    Shows a diff preview of pending changes before you confirm.
+    Shows a diff preview of pending changes (with human-readable labels —
+    "modified", "new file", "untracked", etc.) before you confirm.
   - **Publish to GitHub…** button (replaces Sync) for repos with no remote yet.
   - **Privacy…** button — toggle the repo between public and private on GitHub
     (`gh repo edit --visibility …`).
+  - **Fix leak…** button — appears on every row; opens a triage dialog when
+    a repo is blocked:
+    - *Real secret*: rewrites the full git history with `git-filter-repo`
+      (replacing the flagged value with `[REDACTED]`) and force-pushes to
+      origin. Your local files are never modified.
+    - *False positive*: adds the fingerprint to `.gitleaksignore` in one step.
+  - **Allowlist** button — appears on a row only after a blocked run. One click
+    to add the gitleaks fingerprint to `.gitleaksignore` with no further dialogs.
 - **Auto-reload** — the list refreshes automatically when you save
   `autosync_repos.txt`, with no restart needed (`QFileSystemWatcher`).
 
@@ -192,10 +209,11 @@ the `AUTOSYNC_COMMIT_MSG` env var to the engine script.
 
 **Primary actions:**
 
-- **Dry-run (safe)** — scans all repos; never commits or pushes. Safe to run any time.
-- **Sync now** — commits and pushes all clean repos after the leak-gate. Disabled
-  until gitleaks is found on disk, with an install hint shown in a banner.
-  Shows a **diff preview** (git status --short for each repo) before you confirm.
+- **Dry-run (safe)** — scans checked repos; never commits or pushes. Safe to run any time.
+- **Sync now** — commits and pushes checked repos after the leak-gate. When a subset
+  of repos is checked, each is run sequentially via `--repo`. Disabled until gitleaks
+  is found on disk, with an install hint shown in a banner.
+  Shows a **diff preview** with human-readable labels before you confirm.
 
 **Secondary actions:**
 
