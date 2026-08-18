@@ -9,6 +9,8 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,6 +21,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -66,6 +70,41 @@ _GIT_STATUS_CODES = {
     "!!": "ignored",
     "UU": "conflict",
 }
+
+
+def _confirm_sync_dialog(parent, heading: str, preview: str) -> bool:
+    """Scrollable sync-confirm dialog — buttons always on screen."""
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("Confirm sync")
+    dlg.setMinimumWidth(520)
+
+    layout = QVBoxLayout(dlg)
+    layout.setSpacing(12)
+
+    lbl = QLabel(heading)
+    lbl.setWordWrap(True)
+    layout.addWidget(lbl)
+
+    if preview:
+        layout.addWidget(QLabel("Pending changes:"))
+        pane = QPlainTextEdit(preview)
+        pane.setReadOnly(True)
+        pane.setMaximumHeight(300)
+        pane.setStyleSheet(
+            "background:#1E1E1E; color:#D4D4D4; font-family:monospace;"
+            " font-size:12px; border-radius:6px; padding:8px;"
+        )
+        layout.addWidget(pane)
+    else:
+        layout.addWidget(QLabel("No uncommitted changes found."))
+
+    btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+    btns.button(QDialogButtonBox.Ok).setText("Sync now")
+    btns.accepted.connect(dlg.accept)
+    btns.rejected.connect(dlg.reject)
+    layout.addWidget(btns)
+
+    return dlg.exec() == QDialog.Accepted
 
 
 def _format_git_status(raw: str) -> str:
@@ -362,14 +401,11 @@ class MainWindow(QMainWindow):
         repos = self._checked_repos()
         preview = self._diff_preview(repos=repos)
         scope = "selected repos" if len(repos) < len(self._row_widgets) else "all repos"
-        detail = f"\n\nPending changes:\n{preview}" if preview else "\n\nNo uncommitted changes found."
-        reply = QMessageBox.question(
-            self, "Confirm sync",
-            f"Commit and push changes for {scope} (after leak-gate clears each one)."
-            + detail,
-        )
-        if reply == QMessageBox.Yes:
-            self._run(dry_run=False, repos=repos)
+        if not _confirm_sync_dialog(self,
+                f"Commit and push changes for {scope} (after leak-gate clears each one).",
+                preview):
+            return
+        self._run(dry_run=False, repos=repos)
 
     def _on_dry_run_single(self, name: str):
         self._run(dry_run=True, repo=name)
@@ -380,13 +416,11 @@ class MainWindow(QMainWindow):
                                 "Install gitleaks before running a real sync.")
             return
         preview = self._diff_preview(name)
-        detail = f"\n\nPending changes:\n{preview}" if preview else ""
-        reply = QMessageBox.question(
-            self, "Confirm sync",
-            f"Commit and push changes for '{name}' (after leak-gate clears it)." + detail,
-        )
-        if reply == QMessageBox.Yes:
-            self._run(dry_run=False, repo=name)
+        if not _confirm_sync_dialog(self,
+                f"Commit and push changes for '{name}' (after leak-gate clears it).",
+                preview):
+            return
+        self._run(dry_run=False, repo=name)
 
     def _run(self, *, dry_run: bool, repo: str | None = None, repos: list | None = None):
         if self.runner.is_running():
@@ -486,7 +520,12 @@ class MainWindow(QMainWindow):
         for name, row in self._row_widgets.items():
             info = summary["repos"].get(name)
             if info:
-                row.set_status(info["status"])
+                # OK + "would sync" detail → show "Pending" (changes exist, dry-run only)
+                status = info["status"]
+                detail = info.get("detail", "")
+                if status == "OK" and "would sync" in detail:
+                    status = "PENDING"
+                row.set_status(status)
                 row.set_blocked(info["status"] == "BLOCKED")
             time_str = repo_state.time_since_synced(name)
             row.set_time(time_str, stale=repo_state.is_stale(name))
@@ -898,8 +937,13 @@ class MainWindow(QMainWindow):
         self._refresh_last_sync_label()
 
     def _on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.Trigger:
+        if reason == QSystemTrayIcon.DoubleClick:
             self._tray_open()
+        # Single left-click: show the context menu at the cursor position
+        elif reason == QSystemTrayIcon.Trigger:
+            self._tray.contextMenu().popup(
+                self._tray.geometry().center()
+            )
 
     def _tray_open(self):
         self.show()

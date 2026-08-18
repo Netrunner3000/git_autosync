@@ -8,13 +8,22 @@ class DocumentationDialog(QDialog):
     def __init__(self, parent, markdown_text: str):
         super().__init__(parent)
         self.setWindowTitle("Documentation")
-        self.resize(640, 640)
+        self.resize(700, 700)
 
         layout = QVBoxLayout(self)
 
         browser = QTextBrowser()
         browser.setOpenExternalLinks(True)
         browser.setMarkdown(markdown_text)
+        # Force readable light palette regardless of app stylesheet
+        browser.setStyleSheet(
+            "QTextBrowser {"
+            "  background: #FFFFFF;"
+            "  color: #1D1D1F;"
+            "  font-size: 13px;"
+            "  padding: 12px;"
+            "}"
+        )
         layout.addWidget(browser, stretch=1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
