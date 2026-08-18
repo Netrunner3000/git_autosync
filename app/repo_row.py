@@ -5,11 +5,12 @@ from PySide6.QtWidgets import (
 )
 
 _BADGE = {
-    "SYNCED":  ("#D1F2DC", "#1A7A3A", "✓ Synced"),
-    "BLOCKED": ("#FFE5E3", "#C0392B", "✕ Blocked"),
-    "SKIP":    ("#F0F0F5", "#6E6E73", "⊘ Skipped"),
-    "ERROR":   ("#FFF0E0", "#B45309", "⚠ Error"),
-    "OK":      ("#F0F0F5", "#6E6E73", "No changes"),
+    "SYNCED":   ("#D1F2DC", "#1A7A3A", "✓ Synced"),
+    "BLOCKED":  ("#FFE5E3", "#C0392B", "✕ Blocked"),
+    "SKIP":     ("#F0F0F5", "#6E6E73", "⊘ Skipped"),
+    "ERROR":    ("#FFF0E0", "#B45309", "⚠ Error"),
+    "OK":       ("#F0F0F5", "#6E6E73", "Clean"),
+    "PENDING":  ("#EEF4FF", "#2563EB", "● Pending"),
 }
 _TIME_STYLE  = "color:#6E6E73; font-size:11px;"
 _STALE_STYLE = "background:#FFF8E7; color:#92400E; border-radius:5px; padding:2px 7px; font-size:11px; font-weight:600;"
