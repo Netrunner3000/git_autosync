@@ -1,5 +1,7 @@
 # Handover — build `git_autosync` as an executable macOS app
 
+> **Note:** This document is the original build spec. `README.md` is the current source of truth for features, usage, and architecture.
+
 **For:** Claude Code, working in `~/Documents/lab`
 **Repo:** `~/Documents/lab/active/git_autosync` (its own git repo)
 **Goal:** Add a double-clickable **PySide6 GUI macOS `.app`** to this repo, packaged with PyInstaller. The GUI must **reuse the existing, tested bash core** (`git_autosync.sh` at the repo root) — do not reimplement the leak-gate logic.
