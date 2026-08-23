@@ -27,22 +27,26 @@ class _DockActivateFilter(QObject):
 
 
 def main():
+    background = "--background" in sys.argv
+    if background:
+        sys.argv.remove("--background")
     app = QApplication(sys.argv)
 
     # Try to connect to an already-running instance.
     sock = QLocalSocket()
     sock.connectToServer(_SOCKET_NAME)
     if sock.waitForConnected(300):
-        sock.write(b"raise")
+        sock.write(b"background" if background else b"raise")
         sock.flush()
         sock.waitForBytesWritten(300)
         sock.disconnectFromServer()
-        msg = QMessageBox()
-        msg.setWindowTitle("git_autosync")
-        msg.setText("git_autosync is already running.")
-        msg.setInformativeText("The existing window has been brought to the front.")
-        msg.setIcon(QMessageBox.Information)
-        msg.exec()
+        if not background:
+            msg = QMessageBox()
+            msg.setWindowTitle("git_autosync")
+            msg.setText("git_autosync is already running.")
+            msg.setInformativeText("The existing window has been brought to the front.")
+            msg.setIcon(QMessageBox.Information)
+            msg.exec()
         sys.exit(0)
 
     # Primary instance — claim the socket name and start listening.
@@ -52,11 +56,14 @@ def main():
 
     app.setStyleSheet(STYLESHEET)
     window = MainWindow()
-    window.show()
+    if not background:
+        window.show()
 
     def _on_new_connection():
         conn = server.nextPendingConnection()
         conn.waitForReadyRead(300)
+        if bytes(conn.readAll()) == b"background":
+            return
         window.show()
         window.raise_()
         window.activateWindow()
