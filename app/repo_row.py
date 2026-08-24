@@ -75,6 +75,7 @@ class RepoRow(QWidget):
             self.privacy_btn.setProperty("class", "rowButton")
             self.privacy_btn.clicked.connect(lambda: on_privacy(name))
             layout.addWidget(self.privacy_btn)
+            self._privacy_known = False
 
         if on_ignore is not None:
             self.ignore_btn = QPushButton("Fix leak…")
@@ -135,10 +136,30 @@ class RepoRow(QWidget):
         else:
             self.set_time(f"{days}d ago", stale=days >= 3)
 
+    def set_visibility(self, is_private: bool | None):
+        """Update the Privacy button label to show current state."""
+        if self.privacy_btn is None:
+            return
+        if is_private is None:
+            self.privacy_btn.setText("Privacy…")
+        elif is_private:
+            self.privacy_btn.setText("🔒 Private")
+        else:
+            self.privacy_btn.setText("🌐 Public")
+
     def set_blocked(self, blocked: bool):
-        """Show the Allowlist shortcut button when this repo is blocked."""
+        """Show the Allowlist button and colour Fix leak… red when a leak is active."""
         if self.allowlist_btn:
             self.allowlist_btn.setVisible(blocked)
+        if self.ignore_btn:
+            if blocked:
+                self.ignore_btn.setStyleSheet(
+                    "QPushButton { background:#C0392B; color:white; border-radius:6px;"
+                    " padding:3px 10px; font-size:12px; font-weight:600; }"
+                    "QPushButton:hover { background:#A93226; }"
+                )
+            else:
+                self.ignore_btn.setStyleSheet("")
 
     def set_buttons_enabled(self, enabled: bool):
         self.dry_run_btn.setEnabled(enabled)

@@ -321,6 +321,38 @@ class MainWindow(QMainWindow):
             self.repo_list.setItemWidget(item, row)
             self._row_widgets[name] = row
         self._apply_tooltips(self.tooltips_btn.isChecked())
+        # Fetch GitHub visibility for each repo in the background (non-blocking)
+        QTimer.singleShot(0, self._fetch_all_visibility)
+
+    def _fetch_all_visibility(self):
+        gh = paths.find_gh()
+        if not gh:
+            return
+        try:
+            login_r = subprocess.run(
+                [gh, "api", "user", "--jq", ".login"],
+                capture_output=True, text=True, timeout=8,
+            )
+            login = login_r.stdout.strip()
+            if not login:
+                return
+        except Exception:
+            return
+        for name, row in self._row_widgets.items():
+            if row.privacy_btn is None:
+                continue
+            try:
+                r = subprocess.run(
+                    [gh, "api", f"repos/{login}/{name}", "--jq", ".private"],
+                    capture_output=True, text=True, timeout=8,
+                )
+                val = r.stdout.strip()
+                if val == "true":
+                    row.set_visibility(True)
+                elif val == "false":
+                    row.set_visibility(False)
+            except Exception:
+                pass
 
     def _set_all_checked(self, checked: bool):
         for row in self._row_widgets.values():
@@ -639,9 +671,11 @@ class MainWindow(QMainWindow):
             return
 
         target = "private" if current == "public" else "public"
+        icon = "🔒" if current == "private" else "🌐"
+        target_icon = "🌐" if target == "public" else "🔒"
         if QMessageBox.question(
             self, "Change visibility",
-            f"'{name}' is currently {current.upper()}. Make it {target.upper()}?",
+            f"'{name}' is currently {icon} {current.upper()}.\nMake it {target_icon} {target.upper()}?",
         ) != QMessageBox.Yes:
             return
 
@@ -652,7 +686,11 @@ class MainWindow(QMainWindow):
                 capture_output=True, text=True, timeout=15,
             )
             if r.returncode == 0:
-                QMessageBox.information(self, "Done", f"'{name}' is now {target.upper()}.")
+                QMessageBox.information(self, "Done", f"'{name}' is now {target_icon} {target.upper()}.")
+                # Update button label immediately
+                row = self._row_widgets.get(name)
+                if row:
+                    row.set_visibility(target == "private")
             else:
                 QMessageBox.warning(self, "Failed", f"gh repo edit failed:\n{r.stderr.strip()}")
         except Exception as e:
