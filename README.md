@@ -190,9 +190,13 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
     "modified", "new file", "untracked", etc.) before you confirm.
   - **Publish to GitHub…** button (replaces Sync) for repos with no remote yet.
   - **Privacy…** button — toggle the repo between public and private on GitHub
-    (`gh repo edit --visibility …`).
-  - **Fix leak…** button — appears on every row; opens a triage dialog when
-    a repo is blocked:
+    (`gh repo edit --visibility …`). Label shows the current state once fetched
+    (🔒 Private / 🌐 Public) — on each refresh, visibility for every repo is
+    looked up via `gh api repos/<owner>/<repo>` on a background timer so the
+    list stays responsive. Toggling updates the button label immediately
+    without waiting for the next refresh.
+  - **Fix leak…** button — appears on every row; turns red while the repo is
+    currently blocked, back to normal once it clears. Opens a triage dialog:
     - *Real secret*: rewrites the full git history with `git-filter-repo`
       (replacing the flagged value with `[REDACTED]`) and force-pushes to
       origin. Your local files are never modified.
@@ -264,7 +268,10 @@ The tray menu also has quick **Dry-run** and **Sync now** actions so you don't
 need to open the window at all.
 
 The app is **single-instance**: launching a second copy raises the existing
-window instead of opening a duplicate.
+window instead of opening a duplicate. Launching with `--background` skips
+both the window and the raise — the socket message tells the running instance
+to stay hidden — for starting the app unobtrusively (e.g. at login) without
+stealing focus.
 
 ### Running from source
 
