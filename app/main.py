@@ -24,7 +24,9 @@ class _App(QApplication):
         self._window: MainWindow | None = None
 
     def event(self, e):
-        if e.type() == QEvent.Close and not self.allow_quit and self._window:
+        # Cmd+Q and Dock → Quit arrive as QEvent.Quit; the red button and some
+        # window-manager paths arrive as QEvent.Close.
+        if e.type() in (QEvent.Quit, QEvent.Close) and not self.allow_quit and self._window:
             tray = getattr(self._window, "_tray", None)
             if tray and tray.isVisible():
                 self._window.hide()
