@@ -82,6 +82,31 @@ def repos_without_remote() -> list[Path]:
     return candidates
 
 
+def repo_slug(name: str) -> str | None:
+    """owner/repo for a local repo, read from its 'origin' remote.
+
+    The local directory name is not reliably the GitHub repo name, and the
+    owner may not be the authenticated user (forks, org repos).
+    """
+    import re
+    import subprocess
+
+    git = find_git() or "git"
+    path = lab_active_dir() / name
+    try:
+        r = subprocess.run(
+            [git, "-C", str(path), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=8,
+        )
+    except Exception:
+        return None
+    if r.returncode != 0:
+        return None
+    url = r.stdout.strip()
+    m = re.search(r"github\.com[:/]+([^/]+)/(.+?)(?:\.git)?/?$", url)
+    return f"{m.group(1)}/{m.group(2)}" if m else None
+
+
 def subprocess_run(cmd: list[str]) -> int:
     import subprocess
 

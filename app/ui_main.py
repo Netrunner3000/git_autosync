@@ -328,22 +328,15 @@ class MainWindow(QMainWindow):
         gh = paths.find_gh()
         if not gh:
             return
-        try:
-            login_r = subprocess.run(
-                [gh, "api", "user", "--jq", ".login"],
-                capture_output=True, text=True, timeout=8,
-            )
-            login = login_r.stdout.strip()
-            if not login:
-                return
-        except Exception:
-            return
         for name, row in self._row_widgets.items():
             if row.privacy_btn is None:
                 continue
+            slug = paths.repo_slug(name)
+            if not slug:
+                continue
             try:
                 r = subprocess.run(
-                    [gh, "api", f"repos/{login}/{name}", "--jq", ".private"],
+                    [gh, "api", f"repos/{slug}", "--jq", ".private"],
                     capture_output=True, text=True, timeout=8,
                 )
                 val = r.stdout.strip()
@@ -647,16 +640,16 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "gh not found",
                                 "Install the GitHub CLI first: brew install gh")
             return
+        slug = paths.repo_slug(name)
+        if not slug:
+            QMessageBox.warning(
+                self, "Not on GitHub",
+                f"'{name}' has no GitHub 'origin' remote, so it has no visibility "
+                "to change. Publish it to GitHub first.")
+            return
         try:
-            login_r = subprocess.run([gh, "api", "user", "--jq", ".login"],
-                                     capture_output=True, text=True, timeout=10)
-            login = login_r.stdout.strip()
-            if not login:
-                QMessageBox.warning(self, "Not authenticated",
-                                    "Run 'gh auth login' first.")
-                return
             vis_r = subprocess.run(
-                [gh, "api", f"repos/{login}/{name}", "--jq", ".visibility"],
+                [gh, "api", f"repos/{slug}", "--jq", ".visibility"],
                 capture_output=True, text=True, timeout=10,
             )
             current = vis_r.stdout.strip().lower()
@@ -665,9 +658,15 @@ class MainWindow(QMainWindow):
             return
 
         if current not in ("public", "private"):
-            QMessageBox.warning(self, "Error",
-                                f"Unexpected visibility '{current}'. "
-                                "Make sure the repo exists and gh is authenticated.")
+            err = (vis_r.stderr or "").strip() or (vis_r.stdout or "").strip()
+            if "404" in err or "not found" in err.lower():
+                detail = (f"GitHub has no repository at {slug}.\n\n"
+                          "Either it was renamed/deleted online, or your 'origin' "
+                          "remote points somewhere that no longer exists.")
+            else:
+                detail = (f"Could not read visibility for {slug}.\n\n"
+                          f"{err}\n\nCheck that 'gh auth login' has been run.")
+            QMessageBox.warning(self, "Can't read visibility", detail)
             return
 
         target = "private" if current == "public" else "public"
@@ -681,7 +680,7 @@ class MainWindow(QMainWindow):
 
         try:
             r = subprocess.run(
-                [gh, "repo", "edit", f"{login}/{name}",
+                [gh, "repo", "edit", slug,
                  "--visibility", target, "--accept-visibility-change-consequences"],
                 capture_output=True, text=True, timeout=15,
             )
@@ -1013,7 +1012,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._tray and self._tray.isVisible():
-            event.accept()
+            # Ignore, not accept: during Cmd+Q / Dock Quit macOS asks every
+            # window to close and terminates if they all agree. Refusing keeps
+            # the process (and the tray icon) alive.
+            event.ignore()
+            self.hide()
             try:
                 from AppKit import NSApplication
                 NSApplication.sharedApplication().hide_(None)
