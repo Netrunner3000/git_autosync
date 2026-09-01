@@ -10,33 +10,42 @@ from .ui_main import MainWindow
 _SOCKET_NAME = "git_autosync_instance"
 
 
-class _AppEventFilter(QObject):
-    """Handles macOS-specific app-level events.
+class _App(QApplication):
+    """QApplication subclass that intercepts macOS Cmd+Q / Dock Quit.
 
-    - ApplicationActivate: reopens the window when the Dock icon is clicked.
-    - Close (sent by Cmd+Q / Dock → Quit): hides the window instead of
-      quitting when the tray icon is active, so the app keeps running in
-      the menu bar. The tray's own Quit action calls _tray_quit() directly
-      and is not intercepted here.
+    Overriding event() at the QApplication level is the only reliable way
+    to catch these on macOS — an event filter on the app object receives
+    the Close event before super().event() would call quit().
     """
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.allow_quit = False   # set True by the tray's own Quit action
+        self._window: MainWindow | None = None
+
+    def event(self, e):
+        if e.type() == QEvent.Close and not self.allow_quit and self._window:
+            tray = getattr(self._window, "_tray", None)
+            if tray and tray.isVisible():
+                self._window.hide()
+                e.ignore()
+                return True   # suppress — keep running in tray
+        return super().event(e)
+
+
+class _DockActivateFilter(QObject):
+    """Reopens the window when the macOS Dock icon is clicked while hidden."""
 
     def __init__(self, window: MainWindow):
         super().__init__()
         self._window = window
 
     def eventFilter(self, obj, event):
-        t = event.type()
-        if t == QEvent.ApplicationActivate and not self._window.isVisible():
+        if event.type() == QEvent.ApplicationActivate and not self._window.isVisible():
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
             self._window.repaint()
-        elif t == QEvent.Close:
-            tray = getattr(self._window, "_tray", None)
-            if tray and tray.isVisible():
-                self._window.hide()
-                event.ignore()
-                return True  # suppress — keep running in tray
         return False
 
 
@@ -44,7 +53,7 @@ def main():
     background = "--background" in sys.argv
     if background:
         sys.argv.remove("--background")
-    app = QApplication(sys.argv)
+    app = _App(sys.argv)
 
     # Try to connect to an already-running instance.
     sock = QLocalSocket()
@@ -70,6 +79,8 @@ def main():
 
     app.setStyleSheet(STYLESHEET)
     window = MainWindow()
+    app._window = window
+
     if not background:
         window.show()
 
@@ -84,8 +95,7 @@ def main():
 
     server.newConnection.connect(_on_new_connection)
 
-    # Keep filter alive for the lifetime of the app.
-    dock_filter = _AppEventFilter(window)
+    dock_filter = _DockActivateFilter(window)
     app.installEventFilter(dock_filter)
 
     sys.exit(app.exec())
