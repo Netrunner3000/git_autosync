@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import config, paths, repo_state, scheduler
+from . import config, login_item, paths, repo_state, scheduler
 from .create_repo_dialog import CreateRepoDialog
 from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
@@ -936,6 +936,11 @@ class MainWindow(QMainWindow):
         menu.addAction("Dry-run", lambda: self._run(dry_run=True))
         menu.addAction("Sync now", self._on_sync)
         menu.addSeparator()
+        login_action = menu.addAction("Start at login")
+        login_action.setCheckable(True)
+        login_action.setChecked(login_item.is_enabled())
+        login_action.toggled.connect(self._on_toggle_login_item)
+        menu.addSeparator()
         menu.addAction("Quit", self._tray_quit)
         self._tray.setContextMenu(menu)
         self._tray.activated.connect(self._on_tray_activated)
@@ -992,7 +997,19 @@ class MainWindow(QMainWindow):
     def _tray_quit(self):
         if self._tray:
             self._tray.hide()
-        QApplication.instance().quit()
+        app = QApplication.instance()
+        if hasattr(app, "allow_quit"):
+            app.allow_quit = True   # let the Close event through
+        app.quit()
+
+    def _on_toggle_login_item(self, enabled: bool):
+        try:
+            if enabled:
+                login_item.enable()
+            else:
+                login_item.disable()
+        except Exception as e:
+            QMessageBox.warning(self, "Login item error", str(e))
 
     def closeEvent(self, event):
         if self._tray and self._tray.isVisible():
