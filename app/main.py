@@ -10,19 +10,33 @@ from .ui_main import MainWindow
 _SOCKET_NAME = "git_autosync_instance"
 
 
-class _DockActivateFilter(QObject):
-    """Reopens the window when the macOS Dock icon is clicked while hidden."""
+class _AppEventFilter(QObject):
+    """Handles macOS-specific app-level events.
+
+    - ApplicationActivate: reopens the window when the Dock icon is clicked.
+    - Close (sent by Cmd+Q / Dock → Quit): hides the window instead of
+      quitting when the tray icon is active, so the app keeps running in
+      the menu bar. The tray's own Quit action calls _tray_quit() directly
+      and is not intercepted here.
+    """
 
     def __init__(self, window: MainWindow):
         super().__init__()
         self._window = window
 
     def eventFilter(self, obj, event):
-        if event.type() == QEvent.ApplicationActivate and not self._window.isVisible():
+        t = event.type()
+        if t == QEvent.ApplicationActivate and not self._window.isVisible():
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
             self._window.repaint()
+        elif t == QEvent.Close:
+            tray = getattr(self._window, "_tray", None)
+            if tray and tray.isVisible():
+                self._window.hide()
+                event.ignore()
+                return True  # suppress — keep running in tray
         return False
 
 
@@ -71,7 +85,7 @@ def main():
     server.newConnection.connect(_on_new_connection)
 
     # Keep filter alive for the lifetime of the app.
-    dock_filter = _DockActivateFilter(window)
+    dock_filter = _AppEventFilter(window)
     app.installEventFilter(dock_filter)
 
     sys.exit(app.exec())
