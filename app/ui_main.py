@@ -1,4 +1,5 @@
 """Main window for the git_autosync GUI."""
+import os
 import re
 import subprocess
 from datetime import datetime, timedelta
@@ -994,12 +995,27 @@ class MainWindow(QMainWindow):
         self.repaint()
 
     def _tray_quit(self):
-        if self._tray:
-            self._tray.hide()
+        """Hard quit — the only path that actually terminates the process.
+
+        Cmd+Q and Dock -> Quit deliberately only hide to the tray, so this has
+        to be reliable: a stuck child process or a pending modal must not be
+        able to keep the app alive.
+        """
         app = QApplication.instance()
         if hasattr(app, "allow_quit"):
-            app.allow_quit = True   # let the Close event through
+            app.allow_quit = True   # stop _App.event() from suppressing the quit
+        if self._tray:
+            self._tray.hide()
+            self._tray.setVisible(False)
+        # Kill any engine subprocess still running so it can't block exit.
+        try:
+            self.runner.stop()
+        except Exception:
+            pass
         app.quit()
+        # Belt and braces: if the event loop is blocked (modal dialog, stuck
+        # child), leave anyway rather than becoming unquittable.
+        QTimer.singleShot(600, lambda: os._exit(0))
 
     def _on_toggle_login_item(self, enabled: bool):
         try:
@@ -1011,10 +1027,17 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Login item error", str(e))
 
     def closeEvent(self, event):
+        app = QApplication.instance()
+        if getattr(app, "allow_quit", False):
+            # A real quit gesture (Cmd+Q, Dock -> Quit, tray Quit) is in
+            # progress — let the window close so the app can terminate.
+            if self._tray:
+                self._tray.hide()
+            event.accept()
+            return
         if self._tray and self._tray.isVisible():
-            # Ignore, not accept: during Cmd+Q / Dock Quit macOS asks every
-            # window to close and terminates if they all agree. Refusing keeps
-            # the process (and the tray icon) alive.
+            # Just closing the window: ignore rather than accept, so the
+            # process and its menu bar icon stay alive in the background.
             event.ignore()
             self.hide()
             try:
