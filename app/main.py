@@ -24,12 +24,17 @@ class _App(QApplication):
         self._window: MainWindow | None = None
 
     def event(self, e):
-        # An explicit quit gesture (Cmd+Q, Dock → Quit) arrives as QEvent.Quit
-        # and must really terminate. macOS implements it by asking every window
-        # to close, so flag it first: MainWindow.closeEvent hides to the tray
-        # instead of closing unless this flag says the user asked to quit.
-        if e.type() == QEvent.Quit:
-            self.allow_quit = True
+        # Cmd+Q and Dock -> Quit arrive as QEvent.Quit; the red button and some
+        # window-manager paths arrive as QEvent.Close. Neither should terminate
+        # a menu bar app: swallow them and hide instead, so the tray icon
+        # survives. Only the tray's own Quit sets allow_quit and gets through.
+        if e.type() in (QEvent.Quit, QEvent.Close) and not self.allow_quit:
+            window = self._window
+            tray = getattr(window, "_tray", None) if window else None
+            if tray and tray.isVisible():
+                window.hide()
+                e.ignore()
+                return True   # suppress the quit — keep running in the tray
         return super().event(e)
 
 
