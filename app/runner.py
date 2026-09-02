@@ -104,6 +104,16 @@ class AutosyncRunner(QObject):
     def is_running(self) -> bool:
         return self._process is not None and self._process.state() != QProcess.NotRunning
 
+    def stop(self) -> None:
+        """Terminate the engine subprocess, if one is running.
+
+        Called on quit so a long sync can't keep the app alive.
+        """
+        if not self.is_running():
+            return
+        self._process.kill()
+        self._process.waitForFinished(1000)
+
     def start(
         self,
         *,
