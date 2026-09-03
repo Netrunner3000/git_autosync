@@ -261,8 +261,15 @@ The app lives in the macOS menu bar as a coloured dot:
 - **Grey** — no real run has completed yet.
 
 Closing the main window does **not** quit the app — it hides to the tray so
-scheduled syncs keep running in the background. To reopen: click the tray dot or
-the Dock icon. To quit fully: choose **Quit** from the tray menu.
+scheduled syncs keep running in the background. Neither does ⌘Q or the Dock's
+**Quit**: both hide the window and drop the app out of the Dock, leaving it
+running in the menu bar. macOS will report the quit as cancelled; that is the
+app declining to exit, not an error.
+
+To reopen: click the tray dot, or launch the app again from Finder — the second
+launch signals the running copy to come back to the Dock and un-hide. To quit
+fully, ending background syncs: choose **Quit** from the tray menu. That is the
+only exit.
 
 The tray menu also has quick **Dry-run** and **Sync now** actions so you don't
 need to open the window at all.

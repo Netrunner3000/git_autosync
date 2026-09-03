@@ -33,6 +33,7 @@ from . import config, login_item, paths, repo_state, scheduler
 from .create_repo_dialog import CreateRepoDialog
 from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
+from .macos_dock import set_dock_icon_visible
 from .repo_row import RepoRow
 from .runner import AutosyncRunner
 from .schedule_dialog import ScheduleDialog
@@ -988,7 +989,22 @@ class MainWindow(QMainWindow):
                 self._tray.geometry().center()
             )
 
+    def _show_tray_hint(self):
+        """Say what happened — a quit that visibly does nothing reads as a hang."""
+        if self._tray_hint_shown or not self._tray:
+            return
+        self._tray.showMessage(
+            "Still running in the menu bar",
+            "Syncs keep running. To exit fully: menu bar icon → Quit.",
+            QSystemTrayIcon.Information,
+            4000,
+        )
+        self._tray_hint_shown = True
+
     def _tray_open(self):
+        # First, or the raise below does nothing: an accessory app can't take
+        # focus until its activation policy is back to Regular.
+        set_dock_icon_visible(True)
         self.show()
         self.raise_()
         self.activateWindow()
@@ -1040,19 +1056,7 @@ class MainWindow(QMainWindow):
             # process and its menu bar icon stay alive in the background.
             event.ignore()
             self.hide()
-            try:
-                from AppKit import NSApplication
-                NSApplication.sharedApplication().hide_(None)
-            except Exception:
-                pass
-            if not self._tray_hint_shown:
-                self._tray.showMessage(
-                    "git_autosync",
-                    "Still running in the background — click the tray icon to "
-                    "reopen, or choose Quit from its menu to stop it.",
-                    QSystemTrayIcon.Information,
-                    4000,
-                )
-                self._tray_hint_shown = True
+            set_dock_icon_visible(False)
+            self._show_tray_hint()
         else:
             event.accept()
