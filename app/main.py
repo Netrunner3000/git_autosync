@@ -4,6 +4,7 @@ from PySide6.QtCore import QEvent, QObject
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from .macos_dock import set_dock_icon_visible
 from .style import STYLESHEET
 from .ui_main import MainWindow
 
@@ -33,6 +34,9 @@ class _App(QApplication):
             tray = getattr(window, "_tray", None) if window else None
             if tray and tray.isVisible():
                 window.hide()
+                # Hiding alone leaves the dock tile behind, which reads as a
+                # failed quit — drop out of the dock too.
+                set_dock_icon_visible(False)
                 e.ignore()
                 return True   # suppress the quit — keep running in the tray
         return super().event(e)
@@ -94,6 +98,7 @@ def main():
         conn.waitForReadyRead(300)
         if bytes(conn.readAll()) == b"background":
             return
+        set_dock_icon_visible(True)   # first: an accessory app can't take focus
         window.show()
         window.raise_()
         window.activateWindow()
