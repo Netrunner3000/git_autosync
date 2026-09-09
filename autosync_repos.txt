@@ -7,10 +7,9 @@
 # others are skipped with a notice.
 
 backup_manager
-convert_epub
-image_tools
-sentinel_ai
-vpn_agent
+toolbox/convert_epub
+toolbox/image_tools
+sentinel_fork/vpn_agent
 git_autosync        # this tool itself (synced once it has a GitHub remote)
 
 # Leave out any repo that still has secrets committed in its history, until the
