@@ -175,3 +175,17 @@ def test_gitleaks_error_treated_as_blocked_not_clean():
     assert status == "ERROR", f"Expected ERROR, got {status!r} — tool must fail closed"
     assert result["counts"]["synced"] == 0
     assert result["counts"]["errors"] == 1
+
+
+def test_unpushed_commits_reported_as_would_push():
+    """A repo with no file changes but unpushed commits is not "clean" —
+    the dry-run must say a push is pending so the GUI can badge it."""
+    text = (
+        "2026-09-09 17:00:00 | SUMMARY:\n"
+        "2026-09-09 17:00:00 |    OK      imprint  (dry-run: would push 30 unpushed commit(s))\n"
+        "2026-09-09 17:00:00 | synced=0 blocked=0 skipped=0 errors=0 noop=1\n"
+    )
+    summary = parse_summary(text)
+    info = summary["repos"]["imprint"]
+    assert info["status"] == "OK"
+    assert "would push" in info["detail"]

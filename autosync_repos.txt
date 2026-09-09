@@ -12,6 +12,11 @@ toolbox/image_tools
 sentinel_fork/vpn_agent
 git_autosync        # this tool itself (synced once it has a GitHub remote)
 
+# Not listed on purpose: 'imprint' develops on feature branches with work in
+# progress. autosync only ever pushes the *checked-out* branch, so it would
+# commit WIP under a timestamp message and publish whatever branch happened to
+# be current, while main's commits sat unpushed. Push that one by hand.
+#
 # Leave out any repo that still has secrets committed in its history, until the
 # secrets are removed and the history is cleaned. Even if such a repo is added
 # early, the history scan will keep blocking it — by design.
