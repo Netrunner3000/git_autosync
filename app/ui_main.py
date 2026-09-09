@@ -35,7 +35,7 @@ from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
 from .macos_dock import set_dock_icon_visible
 from .repo_row import RepoRow
-from .rescan_dialog import RescanDialog
+from .rescan_dialog import RescanDialog, plan_changes
 from .runner import AutosyncRunner
 from .schedule_dialog import ScheduleDialog
 
@@ -168,6 +168,18 @@ class MainWindow(QMainWindow):
         )
         self.gitleaks_banner.hide()
         root.addWidget(self.gitleaks_banner)
+
+        # Repo-list drift banner — the list is a file, not a live view of disk,
+        # so say plainly when the two have diverged instead of waiting for the
+        # user to guess that Rescan exists.
+        self.drift_banner = QLabel()
+        self.drift_banner.setWordWrap(True)
+        self.drift_banner.setStyleSheet(
+            "background:#EEF4FF; color:#1E3A8A; padding:9px 12px;"
+            " border:1px solid #BFD3FF; border-radius:8px;"
+        )
+        self.drift_banner.hide()
+        root.addWidget(self.drift_banner)
 
         # ── Repos section ──────────────────────────────────────────
         repos_header = QHBoxLayout()
@@ -333,6 +345,7 @@ class MainWindow(QMainWindow):
             if not paths.repo_exists(name):
                 row.set_missing(True)
         self._apply_tooltips(self.tooltips_btn.isChecked())
+        self._refresh_drift_banner()
         # Fetch GitHub visibility for each repo in the background (non-blocking)
         QTimer.singleShot(0, self._fetch_all_visibility)
 
@@ -359,6 +372,31 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    def _refresh_drift_banner(self):
+        """Say when the list and the disk disagree. A dry-run reports on the
+        list as configured; it cannot notice a repo that was never listed."""
+        try:
+            entries = config.read_repos(self.config_path)
+            plan = plan_changes(entries, paths.discover_repos())
+        except Exception:
+            self.drift_banner.hide()
+            return
+        gone = len(plan["relocate"]) + len(plan["drop"])
+        new = len(plan["new"])
+        if not gone and not new:
+            self.drift_banner.hide()
+            return
+        bits = []
+        if gone:
+            bits.append(f"{gone} listed repo(s) moved or no longer exist")
+        if new:
+            bits.append(f"{new} repo(s) on disk are not in your list")
+        self.drift_banner.setText(
+            "Your repo list is out of date — " + ", and ".join(bits) +
+            ". Click Rescan… to reconcile it. (Dry-run only checks the repos "
+            "already listed, so it cannot find these.)")
+        self.drift_banner.show()
+
     def _on_rescan(self):
         dlg = RescanDialog(self, self.config_path)
         if dlg.exec() == QDialog.Accepted:
@@ -376,7 +414,9 @@ class MainWindow(QMainWindow):
 
     def _set_all_row_buttons_enabled(self, enabled: bool):
         for row in self._row_widgets.values():
-            row.set_buttons_enabled(enabled)
+            # A missing repo stays disabled: re-enabling it after a run made
+            # dead entries look clickable again.
+            row.set_buttons_enabled(enabled and not row.is_missing())
 
     def _check_gitleaks(self):
         found = paths.find_gitleaks()
@@ -572,8 +612,9 @@ class MainWindow(QMainWindow):
                     status = "PENDING"
                 row.set_status(status)
                 row.set_blocked(info["status"] == "BLOCKED")
-            time_str = repo_state.time_since_synced(name)
-            row.set_time(time_str, stale=repo_state.is_stale(name))
+            if not row.is_missing():
+                time_str = repo_state.time_since_synced(name)
+                row.set_time(time_str, stale=repo_state.is_stale(name))
 
         # Leak report in output pane
         blocked = {n: f for n, f in self._last_findings.items()
