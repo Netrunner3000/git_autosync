@@ -35,6 +35,7 @@ from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
 from .macos_dock import set_dock_icon_visible
 from .repo_row import RepoRow
+from .rescan_dialog import RescanDialog
 from .runner import AutosyncRunner
 from .schedule_dialog import ScheduleDialog
 
@@ -186,6 +187,13 @@ class MainWindow(QMainWindow):
         self.select_none_btn.clicked.connect(lambda: self._set_all_checked(False))
         repos_header.addWidget(self.select_all_btn)
         repos_header.addWidget(self.select_none_btn)
+        self.rescan_btn = QPushButton("Rescan…")
+        self.rescan_btn.setProperty("class", "rowButton")
+        self.rescan_btn.setToolTip(
+            "Compare the list against what is actually on disk: relocate repos "
+            "that moved, drop ones that are gone, add ones that are new.")
+        self.rescan_btn.clicked.connect(self._on_rescan)
+        repos_header.addWidget(self.rescan_btn)
         self.edit_btn = QPushButton("Edit list")
         self.edit_btn.clicked.connect(self._on_edit_repo_list)
         repos_header.addWidget(self.edit_btn)
@@ -322,6 +330,8 @@ class MainWindow(QMainWindow):
             self.repo_list.addItem(item)
             self.repo_list.setItemWidget(item, row)
             self._row_widgets[name] = row
+            if not paths.repo_exists(name):
+                row.set_missing(True)
         self._apply_tooltips(self.tooltips_btn.isChecked())
         # Fetch GitHub visibility for each repo in the background (non-blocking)
         QTimer.singleShot(0, self._fetch_all_visibility)
@@ -348,6 +358,12 @@ class MainWindow(QMainWindow):
                     row.set_visibility(False)
             except Exception:
                 pass
+
+    def _on_rescan(self):
+        dlg = RescanDialog(self, self.config_path)
+        if dlg.exec() == QDialog.Accepted:
+            self._reload_repo_list()
+            self._refresh_last_sync_label()
 
     def _set_all_checked(self, checked: bool):
         for row in self._row_widgets.values():

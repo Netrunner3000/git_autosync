@@ -11,6 +11,7 @@ _BADGE = {
     "ERROR":    ("#FFF0E0", "#B45309", "⚠ Error"),
     "OK":       ("#F0F0F5", "#6E6E73", "Clean"),
     "PENDING":  ("#EEF4FF", "#2563EB", "● Pending"),
+    "MISSING":  ("#FFE5E3", "#C0392B", "⚠ Missing"),
 }
 _TIME_STYLE  = "color:#6E6E73; font-size:11px;"
 _STALE_STYLE = "background:#FFF8E7; color:#92400E; border-radius:5px; padding:2px 7px; font-size:11px; font-weight:600;"
@@ -146,6 +147,25 @@ class RepoRow(QWidget):
             self.privacy_btn.setText("🔒 Private")
         else:
             self.privacy_btn.setText("🌐 Public")
+
+    def set_missing(self, missing: bool):
+        """Entry no longer resolves to a repo on disk — say so and disable it.
+
+        Without this a stale entry looks identical to a healthy one: same row,
+        same working buttons, and the failure only shows up mid-run.
+        """
+        if missing:
+            self.set_status("MISSING")
+            self.label.setStyleSheet("color:#C0392B; text-decoration: line-through;")
+            self.setToolTip(f"{self.name} no longer exists on disk. "
+                            "Use Rescan… to relocate or remove it.")
+            self.set_buttons_enabled(False)
+            self.checkbox.setChecked(False)
+            self.checkbox.setEnabled(False)
+        else:
+            self.label.setStyleSheet("")
+            self.setToolTip("")
+            self.checkbox.setEnabled(True)
 
     def set_blocked(self, blocked: bool):
         """Show the Allowlist button and colour Fix leak… red when a leak is active."""

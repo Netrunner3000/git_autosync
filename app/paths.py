@@ -65,21 +65,63 @@ def lab_active_dir() -> Path:
     return Path(os.environ.get("LAB_ACTIVE", str(Path.home() / "Documents" / "lab" / "active")))
 
 
-def repos_without_remote() -> list[Path]:
-    """Git repos under lab_active_dir() that have no 'origin' remote configured —
-    candidates for the "Create GitHub repo" flow."""
+_SKIP_DIRS = {".venv", "venv", "node_modules", ".git", "build", "dist",
+              "__pycache__", ".claude"}
+
+
+def discover_repos(max_depth: int = 3) -> list[str]:
+    """Every git repo under lab_active_dir(), as paths relative to it.
+
+    Nested repos are normal here — a companion app under its parent project is
+    still its own repo — so this recurses instead of scanning one level. Returns
+    e.g. ["backup_manager", "toolbox/convert_epub", "imprint/vidforge"].
+    """
     base = lab_active_dir()
     if not base.is_dir():
         return []
-    candidates = []
-    for child in sorted(base.iterdir()):
-        if not (child / ".git").is_dir():
-            continue
-        git = find_git() or "git"
-        result = subprocess_run([git, "-C", str(child), "remote", "get-url", "origin"])
-        if result != 0:
-            candidates.append(child)
-    return candidates
+    found: list[str] = []
+
+    def walk(d: Path, depth: int) -> None:
+        if depth > max_depth:
+            return
+        for child in sorted(d.iterdir()):
+            if not child.is_dir() or child.name in _SKIP_DIRS:
+                continue
+            if (child / ".git").is_dir():
+                found.append(str(child.relative_to(base)))
+            walk(child, depth + 1)
+
+    walk(base, 1)
+    return found
+
+
+def repo_exists(entry: str) -> bool:
+    """True if a config entry still resolves to a git repo on disk."""
+    return (resolve_entry(entry) / ".git").is_dir()
+
+
+def resolve_entry(entry: str) -> Path:
+    """Config entry -> filesystem path, matching the shell engine's rules."""
+    e = entry.strip()
+    if e.startswith("~"):
+        return Path(e).expanduser()
+    if e.startswith("/"):
+        return Path(e)
+    return lab_active_dir() / e
+
+
+def has_remote(entry: str) -> bool:
+    git = find_git() or "git"
+    path = resolve_entry(entry)
+    return subprocess_run([git, "-C", str(path), "remote", "get-url", "origin"]) == 0
+
+
+def repos_without_remote() -> list[Path]:
+    """Git repos under lab_active_dir() that have no 'origin' remote configured —
+    candidates for the "Create GitHub repo" flow. Recurses, so nested repos
+    (imprint/vidforge, sentinel_fork/vpn_agent, toolbox/*) are seen too."""
+    base = lab_active_dir()
+    return [base / rel for rel in discover_repos() if not has_remote(rel)]
 
 
 def repo_slug(name: str) -> str | None:
