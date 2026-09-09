@@ -117,26 +117,30 @@ N_SYNCED=0; N_BLOCKED=0; N_SKIP=0; N_NOOP=0; N_ERR=0
 
 process_repo(){
   local entry="$1"
-  local dir name branch rc needs_create=0
+  local dir name label branch rc needs_create=0
   dir="$(resolve_repo "$entry")"
+  # label identifies the repo everywhere it is reported: it is the config entry
+  # verbatim, so the GUI (which keys its rows by config entry) can match. name
+  # stays the bare directory name, which is what GitHub gets called.
+  label="$entry"
   name="$(basename "$dir")"
   rule
-  log "REPO: $name  ($dir)"
+  log "REPO: $label  ($dir)"
 
   if [ ! -d "$dir/.git" ]; then
     log "  SKIP: not a git repository"
-    SUMMARY+=("SKIP    $name  (not a git repo)"); N_SKIP=$((N_SKIP+1)); return
+    SUMMARY+=("SKIP    $label  (not a git repo)"); N_SKIP=$((N_SKIP+1)); return
   fi
   rm -f "$dir/.git/index.lock" 2>/dev/null
-  cd "$dir" || { log "  SKIP: cannot cd"; SUMMARY+=("SKIP    $name  (cd failed)"); N_SKIP=$((N_SKIP+1)); return; }
+  cd "$dir" || { log "  SKIP: cannot cd"; SUMMARY+=("SKIP    $label  (cd failed)"); N_SKIP=$((N_SKIP+1)); return; }
 
   if ! git remote get-url origin >/dev/null 2>&1; then
-    if [ -n "$CREATE_REMOTE" ] && [ "$name" = "$ONLY" ]; then
+    if [ -n "$CREATE_REMOTE" ] && { [ "$label" = "$ONLY" ] || [ "$name" = "$ONLY" ]; }; then
       log "  no 'origin' remote yet — will create a $CREATE_REMOTE GitHub repo after the gate clears."
       needs_create=1
     else
       log "  SKIP: no 'origin' remote (run the GitHub setup script first)"
-      SUMMARY+=("SKIP    $name  (no GitHub remote)"); N_SKIP=$((N_SKIP+1)); return
+      SUMMARY+=("SKIP    $label  (no GitHub remote)"); N_SKIP=$((N_SKIP+1)); return
     fi
   fi
 
@@ -148,22 +152,22 @@ process_repo(){
   if [ $rc -eq 1 ]; then
     log "  BLOCKED: gitleaks found a secret in your changes. Nothing committed or pushed."
     git reset -q 2>/dev/null
-    SUMMARY+=("BLOCKED $name  (secret in changes - see log)"); N_BLOCKED=$((N_BLOCKED+1)); return
+    SUMMARY+=("BLOCKED $label  (secret in changes - see log)"); N_BLOCKED=$((N_BLOCKED+1)); return
   elif [ $rc -ge 2 ]; then
     log "  ERROR: gitleaks failed to run on staged changes. Skipping for safety."
     git reset -q 2>/dev/null
-    SUMMARY+=("ERROR   $name  (scanner error)"); N_ERR=$((N_ERR+1)); return
+    SUMMARY+=("ERROR   $label  (scanner error)"); N_ERR=$((N_ERR+1)); return
   fi
   scan_history "$dir"; rc=$?
   if [ $rc -eq 1 ]; then
     log "  BLOCKED: a secret exists in this repo's git HISTORY. Refusing to push."
     log "           Clean the history before publishing (see README)."
     git reset -q 2>/dev/null
-    SUMMARY+=("BLOCKED $name  (secret in history - see log)"); N_BLOCKED=$((N_BLOCKED+1)); return
+    SUMMARY+=("BLOCKED $label  (secret in history - see log)"); N_BLOCKED=$((N_BLOCKED+1)); return
   elif [ $rc -ge 2 ]; then
     log "  ERROR: gitleaks failed on history. Skipping for safety."
     git reset -q 2>/dev/null
-    SUMMARY+=("ERROR   $name  (scanner error)"); N_ERR=$((N_ERR+1)); return
+    SUMMARY+=("ERROR   $label  (scanner error)"); N_ERR=$((N_ERR+1)); return
   fi
   log "  clean ."
 
@@ -181,15 +185,15 @@ process_repo(){
   if [ "$DRY_RUN" -eq 1 ]; then
     if [ "$needs_create" -eq 1 ]; then
       log "  DRY-RUN: would create a $CREATE_REMOTE GitHub repo '$name' and push."
-      SUMMARY+=("OK      $name  (dry-run: would create $CREATE_REMOTE repo + push)")
+      SUMMARY+=("OK      $label  (dry-run: would create $CREATE_REMOTE repo + push)")
     elif git diff --cached --quiet; then
       if [ "$ahead" -gt 0 ]; then
         log "  DRY-RUN: no file changes, but $ahead unpushed commit(s) would be pushed:"
         git log --oneline '@{u}..HEAD' | sed 's/^/      /' | tee -a "$LOG"
-        SUMMARY+=("OK      $name  (dry-run: would push $ahead unpushed commit(s))")
+        SUMMARY+=("OK      $label  (dry-run: would push $ahead unpushed commit(s))")
       else
         log "  DRY-RUN: clean, nothing to commit."
-        SUMMARY+=("OK      $name  (dry-run: nothing to commit)")
+        SUMMARY+=("OK      $label  (dry-run: nothing to commit)")
       fi
     else
       log "  DRY-RUN: would commit & push these staged changes:"
@@ -197,7 +201,7 @@ process_repo(){
       if [ "$ahead" -gt 0 ]; then
         log "      (plus $ahead earlier unpushed commit(s))"
       fi
-      SUMMARY+=("OK      $name  (dry-run: would sync)")
+      SUMMARY+=("OK      $label  (dry-run: would sync)")
     fi
     git reset -q 2>/dev/null
     N_NOOP=$((N_NOOP+1)); return
@@ -218,21 +222,21 @@ process_repo(){
   if [ "$needs_create" -eq 1 ]; then
     if "$GH" repo create "$name" "--$CREATE_REMOTE" --source=. --remote=origin --push >>"$LOG" 2>&1; then
       log "  created $CREATE_REMOTE GitHub repo and pushed origin/$branch."
-      SUMMARY+=("SYNCED  $name  (new $CREATE_REMOTE repo)"); N_SYNCED=$((N_SYNCED+1))
+      SUMMARY+=("SYNCED  $label  (new $CREATE_REMOTE repo)"); N_SYNCED=$((N_SYNCED+1))
     else
       log "  ERROR: gh repo create failed (see log)."
-      SUMMARY+=("ERROR   $name  (repo creation failed)"); N_ERR=$((N_ERR+1))
+      SUMMARY+=("ERROR   $label  (repo creation failed)"); N_ERR=$((N_ERR+1))
     fi
     return
   fi
 
   # ---- push (covers new commit AND any earlier unpushed commits) ----
   if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-    if git push >>"$LOG" 2>&1; then log "  pushed to origin/$branch."; SUMMARY+=("SYNCED  $name"); N_SYNCED=$((N_SYNCED+1))
-    else log "  ERROR: push failed (see log)."; SUMMARY+=("ERROR   $name  (push failed)"); N_ERR=$((N_ERR+1)); fi
+    if git push >>"$LOG" 2>&1; then log "  pushed to origin/$branch."; SUMMARY+=("SYNCED  $label"); N_SYNCED=$((N_SYNCED+1))
+    else log "  ERROR: push failed (see log)."; SUMMARY+=("ERROR   $label  (push failed)"); N_ERR=$((N_ERR+1)); fi
   else
-    if git push -u origin "$branch" >>"$LOG" 2>&1; then log "  pushed & set upstream origin/$branch."; SUMMARY+=("SYNCED  $name"); N_SYNCED=$((N_SYNCED+1))
-    else log "  ERROR: push failed (see log)."; SUMMARY+=("ERROR   $name  (push failed)"); N_ERR=$((N_ERR+1)); fi
+    if git push -u origin "$branch" >>"$LOG" 2>&1; then log "  pushed & set upstream origin/$branch."; SUMMARY+=("SYNCED  $label"); N_SYNCED=$((N_SYNCED+1))
+    else log "  ERROR: push failed (see log)."; SUMMARY+=("ERROR   $label  (push failed)"); N_ERR=$((N_ERR+1)); fi
   fi
 }
 
@@ -240,7 +244,10 @@ process_repo(){
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line%%#*}"; line="$(echo "$line" | xargs)"   # strip comments + trim
   [ -z "$line" ] && continue
-  if [ -n "$ONLY" ] && [ "$(basename "$(resolve_repo "$line")")" != "$ONLY" ]; then continue; fi
+  # --repo accepts the config entry ("sentinel_fork/vpn_agent") or its bare
+  # name ("vpn_agent"); the GUI sends the entry, a human usually sends the name.
+  if [ -n "$ONLY" ] && [ "$line" != "$ONLY" ] \
+     && [ "$(basename "$(resolve_repo "$line")")" != "$ONLY" ]; then continue; fi
   process_repo "$line"
 done < "$CONFIG"
 

@@ -17,6 +17,21 @@ def _state_path():
     return paths.app_support_dir() / "repo_last_synced.json"
 
 
+def _lookup(data: dict, repo_name: str) -> str | None:
+    """Timestamp for a repo, tolerating the pre-2026-09 key format.
+
+    The engine used to report a repo by its bare directory name while the GUI
+    keyed rows by config entry, so every subpath repo read back as "never".
+    The engine now reports the entry; fall back to the basename so history
+    written under the old scheme still counts.
+    """
+    stamp = data.get(repo_name)
+    if stamp:
+        return stamp
+    base = repo_name.rstrip("/").split("/")[-1]
+    return data.get(base) if base != repo_name else None
+
+
 def read_all() -> dict:
     p = _state_path()
     if not p.exists():
@@ -40,8 +55,7 @@ def record_synced(repo_names: list[str], when: datetime | None = None) -> None:
 
 def days_since_synced(repo_name: str) -> int | None:
     """None if never recorded as synced."""
-    data = read_all()
-    stamp = data.get(repo_name)
+    stamp = _lookup(read_all(), repo_name)
     if not stamp:
         return None
     try:
@@ -53,8 +67,7 @@ def days_since_synced(repo_name: str) -> int | None:
 
 def time_since_synced(repo_name: str) -> str | None:
     """Human-readable 'just now / 5m ago / 2h ago / 3d ago'. None if never synced."""
-    data = read_all()
-    stamp = data.get(repo_name)
+    stamp = _lookup(read_all(), repo_name)
     if not stamp:
         return None
     try:
