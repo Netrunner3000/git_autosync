@@ -23,6 +23,7 @@ class RepoRow(QWidget):
         super().__init__()
         self.name = name
         self._status = None
+        self._missing = False
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 6, 10, 6)
@@ -148,14 +149,21 @@ class RepoRow(QWidget):
         else:
             self.privacy_btn.setText("🌐 Public")
 
+    def is_missing(self) -> bool:
+        return self._missing
+
     def set_missing(self, missing: bool):
         """Entry no longer resolves to a repo on disk — say so and disable it.
 
         Without this a stale entry looks identical to a healthy one: same row,
         same working buttons, and the failure only shows up mid-run.
         """
+        self._missing = missing
         if missing:
             self.set_status("MISSING")
+            # A last-synced time for a repo that is gone is noise at best.
+            self.time_label.setText("")
+            self.time_label.setStyleSheet(_EMPTY_STYLE)
             self.label.setStyleSheet("color:#C0392B; text-decoration: line-through;")
             self.setToolTip(f"{self.name} no longer exists on disk. "
                             "Use Rescan… to relocate or remove it.")
