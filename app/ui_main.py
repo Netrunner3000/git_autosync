@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QFileSystemWatcher, QTimer
+from PySide6.QtCore import Qt, QFileSystemWatcher, QSize, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -34,6 +34,7 @@ from .create_repo_dialog import CreateRepoDialog
 from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
 from .macos_dock import set_dock_icon_visible
+from . import repo_row
 from .repo_row import RepoRow
 from .rescan_dialog import RescanDialog, plan_changes
 from .runner import AutosyncRunner
@@ -189,12 +190,12 @@ class MainWindow(QMainWindow):
         repos_header.addStretch(1)
         self.select_all_btn = QPushButton("All")
         self.select_all_btn.setProperty("class", "rowButton")
-        self.select_all_btn.setFixedWidth(38)
+        self.select_all_btn.setMinimumWidth(46)
         self.select_all_btn.setToolTip("Select all repos")
         self.select_all_btn.clicked.connect(lambda: self._set_all_checked(True))
         self.select_none_btn = QPushButton("None")
         self.select_none_btn.setProperty("class", "rowButton")
-        self.select_none_btn.setFixedWidth(44)
+        self.select_none_btn.setMinimumWidth(56)
         self.select_none_btn.setToolTip("Deselect all repos")
         self.select_none_btn.clicked.connect(lambda: self._set_all_checked(False))
         repos_header.addWidget(self.select_all_btn)
@@ -211,6 +212,9 @@ class MainWindow(QMainWindow):
         self.edit_btn.clicked.connect(self._on_edit_repo_list)
         repos_header.addWidget(self.edit_btn)
         root.addLayout(repos_header)
+
+        self._list_header = self._build_list_header()
+        root.addWidget(self._list_header)
 
         self.repo_list = QListWidget()
         self.repo_list.setSelectionMode(QAbstractItemView.NoSelection)
@@ -338,7 +342,10 @@ class MainWindow(QMainWindow):
             time_str = repo_state.time_since_synced(name)
             row.set_time(time_str, stale=repo_state.is_stale(name))
             item = QListWidgetItem()
-            item.setSizeHint(row.sizeHint())
+            # Width 0 lets the item span the viewport instead of stopping at the
+            # row's natural width — otherwise the right-hand columns float short
+            # of the edge and cannot line up with the header.
+            item.setSizeHint(QSize(0, row.sizeHint().height()))
             item.setData(Qt.UserRole, name)
             self.repo_list.addItem(item)
             self.repo_list.setItemWidget(item, row)
@@ -347,6 +354,7 @@ class MainWindow(QMainWindow):
                 row.set_missing(True)
         self._apply_tooltips(self.tooltips_btn.isChecked())
         self._refresh_drift_banner()
+        QTimer.singleShot(0, self._align_header_to_rows)
         # Fetch GitHub visibility for each repo in the background (non-blocking)
         QTimer.singleShot(0, self._fetch_all_visibility)
 
@@ -372,6 +380,72 @@ class MainWindow(QMainWindow):
                     row.set_visibility(False)
             except Exception:
                 pass
+
+    def _build_list_header(self) -> QWidget:
+        """Column headings for the repo list, using RepoRow's own geometry so
+        the two stay aligned if a column width ever changes."""
+        header = QWidget()
+        header.setObjectName("listHeader")
+        lay = QHBoxLayout(header)
+        lay.setContentsMargins(*repo_row.ROW_MARGINS)
+        lay.setSpacing(repo_row.ROW_SPACING)
+
+        def cell(text, width=None, align=Qt.AlignLeft | Qt.AlignVCenter):
+            lbl = QLabel(text)
+            lbl.setAlignment(align)
+            if width:
+                lbl.setFixedWidth(width)
+            return lbl
+
+        spacer = QWidget()
+        spacer.setFixedWidth(repo_row.CHECK_W)
+        lay.addWidget(spacer)
+
+        name = cell("Repository")
+        name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        lay.addWidget(name, stretch=1)
+        lay.addWidget(cell("Last synced", repo_row.TIME_W,
+                           Qt.AlignRight | Qt.AlignVCenter))
+        lay.addWidget(cell("Status", repo_row.BADGE_W, Qt.AlignCenter))
+        # Width is set from a real row once one exists — the button cluster's
+        # size depends on which buttons that row has.
+        self._header_actions = cell("Actions", 1, Qt.AlignRight | Qt.AlignVCenter)
+        lay.addWidget(self._header_actions)
+
+        header.setStyleSheet(
+            "#listHeader { background:#F5F5F7; border:1px solid #E5E5EA;"
+            " border-bottom:none; border-top-left-radius:8px;"
+            " border-top-right-radius:8px; }"
+            "#listHeader QLabel { color:#6E6E73; font-size:11px;"
+            " font-weight:600; text-transform:uppercase;"
+            " letter-spacing:0.4px; background:transparent; }"
+        )
+        return header
+
+    def _align_header_to_rows(self):
+        """Reserve the same width for the header's Actions column as a real
+        row's buttons occupy, so the columns line up instead of the header
+        drifting right by the width of the button cluster."""
+        rows = list(self._row_widgets.values())
+        if not rows or not hasattr(self, "_header_actions"):
+            return
+        row = max(rows, key=lambda r: r.width())
+        if row.width() <= 0:
+            return
+        right_of_badge = row.width() - (row.badge.x() + row.badge.width())
+        actions_w = max(1, right_of_badge - repo_row.ROW_SPACING
+                        - repo_row.ROW_MARGINS[2])
+        self._header_actions.setFixedWidth(actions_w)
+        # The list has a frame and may show a scrollbar; match that inset so
+        # the header's right edge lands where the rows' does.
+        frame = self.repo_list.frameWidth()
+        bar = (self.repo_list.verticalScrollBar().width()
+               if self.repo_list.verticalScrollBar().isVisible() else 0)
+        self._list_header.setContentsMargins(frame, 0, frame + bar, 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._align_header_to_rows)
 
     def _refresh_drift_banner(self):
         """Say when the list and the disk disagree. A dry-run reports on the

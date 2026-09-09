@@ -13,6 +13,14 @@ _BADGE = {
     "PENDING":  ("#EEF4FF", "#2563EB", "● Pending"),
     "MISSING":  ("#FFE5E3", "#C0392B", "⚠ Missing"),
 }
+# Column geometry, shared with the header row above the list so the two line
+# up. Changing a width here changes the header too.
+ROW_MARGINS = (8, 6, 10, 6)
+ROW_SPACING = 8
+CHECK_W = 20
+TIME_W  = 72
+BADGE_W = 88
+
 _TIME_STYLE  = "color:#6E6E73; font-size:11px;"
 _STALE_STYLE = "background:#FFF8E7; color:#92400E; border-radius:5px; padding:2px 7px; font-size:11px; font-weight:600;"
 _EMPTY_STYLE = "background:transparent;"
@@ -26,11 +34,12 @@ class RepoRow(QWidget):
         self._missing = False
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 6, 10, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(*ROW_MARGINS)
+        layout.setSpacing(ROW_SPACING)
 
         # Selection checkbox
         self.checkbox = QCheckBox()
+        self.checkbox.setFixedWidth(CHECK_W)
         self.checkbox.setChecked(True)
         self.checkbox.setToolTip("Include in bulk Dry-run / Sync now")
         layout.addWidget(self.checkbox)
@@ -42,14 +51,14 @@ class RepoRow(QWidget):
 
         # Last-synced time (subtle, always shown when known)
         self.time_label = QLabel()
-        self.time_label.setFixedWidth(72)
+        self.time_label.setFixedWidth(TIME_W)
         self.time_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.time_label.setStyleSheet(_EMPTY_STYLE)
         layout.addWidget(self.time_label)
 
         # Colored status badge — hidden until first run
         self.badge = QLabel()
-        self.badge.setFixedWidth(88)
+        self.badge.setFixedWidth(BADGE_W)
         self.badge.setAlignment(Qt.AlignCenter)
         self.badge.setStyleSheet(_EMPTY_STYLE)
         layout.addWidget(self.badge)
