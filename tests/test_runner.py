@@ -189,3 +189,18 @@ def test_unpushed_commits_reported_as_would_push():
     info = summary["repos"]["imprint"]
     assert info["status"] == "OK"
     assert "would push" in info["detail"]
+
+
+def test_summary_keys_are_config_entries_not_basenames():
+    """The GUI keys rows by config entry, so the engine must report the entry.
+    Reporting the basename made every nested repo read back as 'never synced'."""
+    text = (
+        "2026-09-09 20:06:06 | SUMMARY:\n"
+        "2026-09-09 20:06:06 |    SYNCED  sentinel_fork/agents/chat_agent\n"
+        "2026-09-09 20:06:06 |    SYNCED  sonar/sonar/macro\n"
+        "2026-09-09 20:06:06 | synced=2 blocked=0 skipped=0 errors=0 noop=0\n"
+    )
+    repos = parse_summary(text)["repos"]
+    assert "sentinel_fork/agents/chat_agent" in repos
+    assert "sonar/sonar/macro" in repos
+    assert repos["sonar/sonar/macro"]["status"] == "SYNCED"
