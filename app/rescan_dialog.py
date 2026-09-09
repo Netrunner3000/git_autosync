@@ -45,7 +45,7 @@ def plan_changes(entries: list[str], discovered: list[str]) -> dict:
 class RescanDialog(QDialog):
     def __init__(self, parent, config_path):
         super().__init__(parent)
-        self.setWindowTitle("Rescan repositories")
+        self.setWindowTitle("Find repos")
         self.setMinimumWidth(560)
         self.config_path = config_path
 
@@ -64,8 +64,9 @@ class RescanDialog(QDialog):
                 "The list matches what is on disk — nothing to reconcile."))
         else:
             head = QLabel(
-                f"Found {len(discovered)} repositories on disk. "
-                f"{n} difference(s) from your list — tick what to apply:")
+                f"Found {len(discovered)} git repositories in your projects "
+                f"folder. {n} of them differ from your list — tick what to "
+                f"apply, then press Apply:")
             head.setWordWrap(True)
             outer.addWidget(head)
 
@@ -74,13 +75,13 @@ class RescanDialog(QDialog):
         body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.setSpacing(4)
 
-        self._section(body_layout, "Moved — the folder is somewhere else now",
+        self._section(body_layout, "Moved — still here, but in a different folder (path will be fixed)",
                       [(f"reloc:{k}", f"{k}  →  {v}")
                        for k, v in self.plan["relocate"].items()])
-        self._section(body_layout, "Gone — no such repo on disk any more",
+        self._section(body_layout, "Gone — no longer on this Mac (will be removed from the list)",
                       [(f"drop:{e}", f"{e}  →  remove from list")
                        for e in self.plan["drop"]])
-        self._section(body_layout, "New — on disk but not in your list",
+        self._section(body_layout, "Not in your list yet — found on disk (will be added)",
                       [(f"add:{d}", d) for d in self.plan["new"]])
         body_layout.addStretch(1)
 

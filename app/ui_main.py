@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
 
         # Repo-list drift banner — the list is a file, not a live view of disk,
         # so say plainly when the two have diverged instead of waiting for the
-        # user to guess that Rescan exists.
+        # user to guess that 'Find repos' exists.
         self.drift_banner = QLabel()
         self.drift_banner.setWordWrap(True)
         self.drift_banner.setStyleSheet(
@@ -199,11 +199,12 @@ class MainWindow(QMainWindow):
         self.select_none_btn.clicked.connect(lambda: self._set_all_checked(False))
         repos_header.addWidget(self.select_all_btn)
         repos_header.addWidget(self.select_none_btn)
-        self.rescan_btn = QPushButton("Rescan…")
+        self.rescan_btn = QPushButton("Find repos…")
         self.rescan_btn.setProperty("class", "rowButton")
         self.rescan_btn.setToolTip(
-            "Compare the list against what is actually on disk: relocate repos "
-            "that moved, drop ones that are gone, add ones that are new.")
+            "Look at every git repo in your projects folder and compare it with "
+            "this list: add repos that are missing from it, fix the path of any "
+            "that moved, and remove ones that are gone.")
         self.rescan_btn.clicked.connect(self._on_rescan)
         repos_header.addWidget(self.rescan_btn)
         self.edit_btn = QPushButton("Edit list")
@@ -393,8 +394,8 @@ class MainWindow(QMainWindow):
             bits.append(f"{new} repo(s) on disk are not in your list")
         self.drift_banner.setText(
             "Your repo list is out of date — " + ", and ".join(bits) +
-            ". Click Rescan… to reconcile it. (Dry-run only checks the repos "
-            "already listed, so it cannot find these.)")
+            ". Click ‘Find repos…’ above to fix it. (Dry-run only checks "
+            "the repos already in the list, so it cannot find these.)")
         self.drift_banner.show()
 
     def _on_rescan(self):
