@@ -166,7 +166,7 @@ class RepoRow(QWidget):
             self.time_label.setStyleSheet(_EMPTY_STYLE)
             self.label.setStyleSheet("color:#C0392B; text-decoration: line-through;")
             self.setToolTip(f"{self.name} no longer exists on disk. "
-                            "Use Rescan… to relocate or remove it.")
+                            "Use 'Find repos…' to fix or remove it.")
             self.set_buttons_enabled(False)
             self.checkbox.setChecked(False)
             self.checkbox.setEnabled(False)
