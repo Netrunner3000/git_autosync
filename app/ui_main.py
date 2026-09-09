@@ -547,10 +547,12 @@ class MainWindow(QMainWindow):
         for name, row in self._row_widgets.items():
             info = summary["repos"].get(name)
             if info:
-                # OK + "would sync" detail → show "Pending" (changes exist, dry-run only)
+                # OK + "would sync"/"would push" detail → "Pending": there is
+                # work waiting (uncommitted changes, or commits not yet pushed).
                 status = info["status"]
                 detail = info.get("detail", "")
-                if status == "OK" and "would sync" in detail:
+                if status == "OK" and ("would sync" in detail
+                                       or "would push" in detail):
                     status = "PENDING"
                 row.set_status(status)
                 row.set_blocked(info["status"] == "BLOCKED")

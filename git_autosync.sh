@@ -170,16 +170,33 @@ process_repo(){
   branch="$(git branch --show-current)"
   branch="${branch:-main}"
 
+  # Commits made but not yet pushed. A real run pushes these regardless, but
+  # without counting them a dry-run reports "nothing to commit" and the GUI
+  # badges the repo Clean while a push is still pending.
+  ahead=0
+  if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    ahead="$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)"
+  fi
+
   if [ "$DRY_RUN" -eq 1 ]; then
     if [ "$needs_create" -eq 1 ]; then
       log "  DRY-RUN: would create a $CREATE_REMOTE GitHub repo '$name' and push."
       SUMMARY+=("OK      $name  (dry-run: would create $CREATE_REMOTE repo + push)")
     elif git diff --cached --quiet; then
-      log "  DRY-RUN: clean, nothing to commit."
-      SUMMARY+=("OK      $name  (dry-run: nothing to commit)")
+      if [ "$ahead" -gt 0 ]; then
+        log "  DRY-RUN: no file changes, but $ahead unpushed commit(s) would be pushed:"
+        git log --oneline '@{u}..HEAD' | sed 's/^/      /' | tee -a "$LOG"
+        SUMMARY+=("OK      $name  (dry-run: would push $ahead unpushed commit(s))")
+      else
+        log "  DRY-RUN: clean, nothing to commit."
+        SUMMARY+=("OK      $name  (dry-run: nothing to commit)")
+      fi
     else
       log "  DRY-RUN: would commit & push these staged changes:"
       git diff --cached --name-status | sed 's/^/      /' | tee -a "$LOG"
+      if [ "$ahead" -gt 0 ]; then
+        log "      (plus $ahead earlier unpushed commit(s))"
+      fi
       SUMMARY+=("OK      $name  (dry-run: would sync)")
     fi
     git reset -q 2>/dev/null
@@ -188,7 +205,11 @@ process_repo(){
 
   # ---- commit (only if there is something staged) ----
   if git diff --cached --quiet; then
-    log "  no file changes to commit."
+    if [ "$ahead" -gt 0 ]; then
+      log "  no file changes to commit; pushing $ahead earlier commit(s)."
+    else
+      log "  no file changes to commit."
+    fi
   else
     git commit -q -m "${AUTOSYNC_COMMIT_MSG:-autosync: $(ts)}" && log "  committed changes."
   fi
