@@ -44,8 +44,11 @@ class RepoRow(QWidget):
         self.checkbox.setToolTip("Include in bulk Dry-run / Sync now")
         layout.addWidget(self.checkbox)
 
-        self.label = QLabel(name)
+        self.label = QLabel()
         self.label.setObjectName("repoName")
+        self.label.setTextFormat(Qt.RichText)
+        self.label.setText(self._name_markup(name))
+        self.label.setToolTip(name)
         self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         layout.addWidget(self.label, stretch=1)
 
@@ -106,6 +109,20 @@ class RepoRow(QWidget):
             layout.addWidget(self.allowlist_btn)
         else:
             self.allowlist_btn = None
+
+    @staticmethod
+    def _name_markup(entry: str) -> str:
+        """Repo name in front, the folders it sits in behind it in grey.
+
+        A nested entry like "sonar/sonar/macro" is otherwise read as one long
+        string, and the doubled segment (repo dir + package dir of the same
+        name) looks like a bug rather than a real path.
+        """
+        parent, _, base = entry.rstrip("/").rpartition("/")
+        if not parent:
+            return f"<b>{base}</b>"
+        return (f"<b>{base}</b>"
+                f"<span style='color:#9A9AA0;'>&nbsp;&nbsp;{parent}/</span>")
 
     # ── public API ────────────────────────────────────────────────
 
@@ -173,6 +190,8 @@ class RepoRow(QWidget):
             # A last-synced time for a repo that is gone is noise at best.
             self.time_label.setText("")
             self.time_label.setStyleSheet(_EMPTY_STYLE)
+            # Plain text here: an inline span colour would beat the stylesheet.
+            self.label.setText(self.name)
             self.label.setStyleSheet("color:#C0392B; text-decoration: line-through;")
             self.setToolTip(f"{self.name} no longer exists on disk. "
                             "Use 'Find repos…' to fix or remove it.")
@@ -180,6 +199,7 @@ class RepoRow(QWidget):
             self.checkbox.setChecked(False)
             self.checkbox.setEnabled(False)
         else:
+            self.label.setText(self._name_markup(self.name))
             self.label.setStyleSheet("")
             self.setToolTip("")
             self.checkbox.setEnabled(True)
