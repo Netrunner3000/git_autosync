@@ -54,3 +54,11 @@ def test_clean_list_plans_nothing(monkeypatch):
     monkeypatch.setattr("app.paths.repo_exists", lambda e: e in DISCOVERED)
     plan = plan_changes(DISCOVERED, DISCOVERED)
     assert plan == {"relocate": {}, "drop": [], "new": []}
+
+
+def test_name_markup_puts_repo_name_first():
+    """'sonar/sonar/macro' should read as macro, living in sonar/sonar/."""
+    from app.repo_row import RepoRow
+    out = RepoRow._name_markup("sonar/sonar/macro")
+    assert out.index("<b>macro</b>") < out.index("sonar/sonar/")
+    assert RepoRow._name_markup("bazaar") == "<b>bazaar</b>"
