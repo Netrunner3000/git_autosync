@@ -12,13 +12,13 @@
 - [ ] `P1` `infra` `@me` **Coverage has fallen far behind the repo count.** The Sep 2026
   reorg left 21 repos under `active/`; `autosync_repos.txt` lists 5. Uncovered:
   `lab_hub`, `imprint`, `imprint/vidforge`, `sentinel_fork`, `sentinel_fork/bug_spray`,
-  `sonar`, `sonar/sonar/macro`, `sonar/sonar/sports`, `toolbox`,
+  `sonar`, `sonar/sonar/macro`, `sonar/sonar/playmaker`, `toolbox`,
   `toolbox/unblock_tracker`, `bazaar`, and the five `sentinel_fork/agents/*` repos.
   Consequences already visible: **`imprint` is 30 commits ahead of its remote**,
   `sentinel_fork/vpn_agent` 1, and `bug_spray` has uncommitted work.
 - [ ] `P1` `infra` `@me` **Nine repos have no remote at all**, so nothing is backing them
   up but the nightly Drive rsync: `bazaar`, `sentinel_fork/bug_spray`, `toolbox`,
-  `sonar/sonar/macro`, `sonar/sonar/sports`, and the five `sentinel_fork/agents/*`.
+  `sonar/sonar/macro`, `sonar/sonar/playmaker`, and the five `sentinel_fork/agents/*`.
   A repo without a remote cannot be autosynced — `--create-remote` is the way in.
 - [ ] `P2` `research` `@ai` Nested repos need a coverage rule. `toolbox/` is a repo that
   *contains* three repos, and `sentinel_fork/` contains three more. Decide whether the
