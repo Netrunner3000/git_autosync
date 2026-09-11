@@ -258,6 +258,23 @@ class MainWindow(QMainWindow):
                   self.open_logs_btn, self.docs_btn, self.tooltips_btn):
             secondary_row.addWidget(b)
         secondary_row.addStretch(1)
+
+        # Cmd+Q and the Dock's Quit deliberately only hide to the menu bar, so
+        # without this the only real exit is a menu the user has to know about.
+        self.hide_btn = QPushButton("Hide to menu bar")
+        self.hide_btn.setToolTip(
+            "Close this window. Scheduled syncs keep running; the menu bar "
+            "icon brings it back.")
+        self.hide_btn.clicked.connect(self._on_hide_to_tray)
+        secondary_row.addWidget(self.hide_btn)
+
+        self.quit_btn = QPushButton("Quit")
+        self.quit_btn.setObjectName("quitButton")
+        self.quit_btn.setToolTip(
+            "Quit git_autosync completely — no menu bar icon, and scheduled "
+            "syncs stop until you open it again.")
+        self.quit_btn.clicked.connect(self._on_quit_clicked)
+        secondary_row.addWidget(self.quit_btn)
         root.addLayout(secondary_row)
 
         # ── Summary banner ─────────────────────────────────────────
@@ -1166,6 +1183,23 @@ class MainWindow(QMainWindow):
         # Belt and braces: if the event loop is blocked (modal dialog, stuck
         # child), leave anyway rather than becoming unquittable.
         QTimer.singleShot(600, lambda: os._exit(0))
+
+    def _on_hide_to_tray(self):
+        self.close()          # closeEvent hides and drops the Dock tile
+
+    def _on_quit_clicked(self):
+        if self._tray and self._tray.isVisible():
+            answer = QMessageBox.question(
+                self, "Quit git_autosync?",
+                "Quit completely?\n\nBackground syncs stop until you open the "
+                "app again. To keep them running, use ‘Hide to menu bar’ "
+                "instead.",
+                QMessageBox.Cancel | QMessageBox.Close,
+                QMessageBox.Close,
+            )
+            if answer != QMessageBox.Close:
+                return
+        self._tray_quit()
 
     def _on_toggle_login_item(self, enabled: bool):
         try:
