@@ -76,6 +76,12 @@ QPushButton[class="rowButton"]:hover  {{ background: #E5E5EA; }}
 QPushButton[class="rowButton"]:pressed {{ background: #D8D8DC; }}
 QPushButton[class="rowButton"]:disabled {{ color: #AEAEB2; background: #F5F5F7; }}
 
+QPushButton#quitButton {{
+    color: #C0392B;
+    border-color: #F0C4BF;
+}}
+QPushButton#quitButton:hover {{ background: #FDEDEC; border-color: #E6A9A1; }}
+
 QPushButton:checkable:checked {{
     background: {ACCENT_LIGHT};
     border-color: {ACCENT};

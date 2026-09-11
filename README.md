@@ -275,9 +275,12 @@ running in the menu bar. macOS will report the quit as cancelled; that is the
 app declining to exit, not an error.
 
 To reopen: click the tray dot, or launch the app again from Finder — the second
-launch signals the running copy to come back to the Dock and un-hide. To quit
-fully, ending background syncs: choose **Quit** from the tray menu. That is the
-only exit.
+launch signals the running copy to come back to the Dock and un-hide.
+
+To quit fully, ending background syncs, use the **Quit** button at the bottom of
+the window (it asks first) or **Quit** in the tray menu. Those are the only two
+exits — ⌘Q and the Dock deliberately hide instead, so a menu bar app is not
+killed by the gesture that closes a window.
 
 The tray menu also has quick **Dry-run** and **Sync now** actions so you don't
 need to open the window at all.
