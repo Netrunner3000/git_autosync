@@ -32,6 +32,10 @@
 - [x] `P1` `feature` `@ai` launchd scheduling (fixed-interval and daily-at-a-time) via the *Schedule sync…* dialog
 - [x] `P2` `infra` `@ai` User-writable config and log location plus the `AUTOSYNC_LOG_DIR` knob
 - [x] `P2` `feature` `@ai` `--create-remote` for publishing a new project to GitHub
+- [x] `P1` `feature` `@ai` **Find repos… reconciles the effective config with repositories on disk.** The preview identifies additions and missing paths; missing rows stay disabled and the main view warns when the list has drifted.
+- [x] `P1` `bug` `@ai` **Nested repository status is keyed by config entry.** Repositories with the same leaf-name context no longer lose their per-entry last-sync state or display “never” incorrectly.
+- [x] `P2` `design` `@ai` **Repository rows are readable at a glance.** Column headers align the controls, the repository name leads, the containing folders trail in muted text, and the None button no longer clips.
+- [x] `P2` `maintenance` `@ai` Follow SONAR's `sports` → `playmaker` repository rename in the tracked-project list.
 
 ## v3 — later
 
