@@ -178,7 +178,8 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
 - **Repo list** — one row per repo in `autosync_repos.txt`. Each row shows:
   - A **checkbox** — include or exclude this repo from bulk Dry-run / Sync now.
     Use the **All** / **None** buttons in the header to check or clear all at once.
-  - The repo name.
+  - The repo name first, followed by its containing folder path in muted text. Column
+    headers keep the checkbox, repository, last-sync, status, and action fields aligned.
   - A **last-synced time** — human-readable ("5m ago", "2h ago", "3d ago").
     Shown as an amber pill when the repo is stale (3+ days) or has never synced.
   - A colored **status badge** after each run:
@@ -205,6 +206,9 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
     to add the gitleaks fingerprint to `.gitleaksignore` with no further dialogs.
 - **Auto-reload** — the list refreshes automatically when you save
   `autosync_repos.txt`, with no restart needed (`QFileSystemWatcher`).
+- **Config-entry identity** — status is keyed by the configured entry, not only the leaf
+  folder name. Nested repositories therefore keep distinct last-sync timestamps and no
+  longer collapse into a misleading “never” state.
 
 **Commit message field:**
 
@@ -222,6 +226,10 @@ the `AUTOSYNC_COMMIT_MSG` env var to the engine script.
 
 **Secondary actions:**
 
+- **Find repos…** — scans the Lab workspace, compares discovered Git repositories with
+  the effective config, and offers a reconciliation preview. Missing configured paths
+  remain visibly disabled after a run, and a banner explains when the saved list has
+  drifted from what exists on disk.
 - **Create GitHub Repo…** — lists local projects under `~/Documents/lab/active/`
   that don't have a GitHub remote yet, lets you pick visibility, adds the repo to
   the config list, then runs the `--create-remote` flow. Shows the new repo's URL
