@@ -115,8 +115,19 @@ scan_history(){
 declare -a SUMMARY
 N_SYNCED=0; N_BLOCKED=0; N_SKIP=0; N_NOOP=0; N_ERR=0
 
+# process_repo <config entry> [sweep|push-only]
+#
+# sweep      — stage the whole working tree, commit it, push. The original
+#              behaviour, and the right one for a repo nobody edits by hand
+#              between runs.
+# push-only  — push commits that already exist and touch nothing else. For any
+#              repo a person or an agent works in: a sweep there rolls several
+#              unrelated half-finished changes into one commit called
+#              "autosync: <timestamp>", which is worse than not backing them up,
+#              because it looks like history and is very hard to unpick later.
 process_repo(){
   local entry="$1"
+  local mode="${2:-sweep}"
   local dir name label branch rc needs_create=0
   dir="$(resolve_repo "$entry")"
   # label identifies the repo everywhere it is reported: it is the config entry
@@ -144,11 +155,23 @@ process_repo(){
     fi
   fi
 
-  git add -A
+  if [ "$mode" = "push-only" ]; then
+    log "  mode: push-only (working tree left alone)"
+  else
+    git add -A
+  fi
 
   # ---- THE GATE ----
+  # History is scanned in both modes: it covers everything about to be
+  # published. The staged scan is skipped in push-only because nothing was
+  # staged — scanning an empty index would pass trivially and read as a
+  # clean result that was never actually performed.
   log "  scanning for secrets..."
-  scan_staged "$dir"; rc=$?
+  if [ "$mode" = "push-only" ]; then
+    rc=0
+  else
+    scan_staged "$dir"; rc=$?
+  fi
   if [ $rc -eq 1 ]; then
     log "  BLOCKED: gitleaks found a secret in your changes. Nothing committed or pushed."
     git reset -q 2>/dev/null
@@ -186,6 +209,15 @@ process_repo(){
     if [ "$needs_create" -eq 1 ]; then
       log "  DRY-RUN: would create a $CREATE_REMOTE GitHub repo '$name' and push."
       SUMMARY+=("OK      $label  (dry-run: would create $CREATE_REMOTE repo + push)")
+    elif [ "$mode" = "push-only" ]; then
+      if [ "$ahead" -gt 0 ]; then
+        log "  DRY-RUN: push-only — would push $ahead commit(s):"
+        git log --oneline '@{u}..HEAD' | sed 's/^/      /' | tee -a "$LOG"
+        SUMMARY+=("OK      $label  (dry-run: would push $ahead commit(s), push-only)")
+      else
+        log "  DRY-RUN: push-only — nothing committed to push."
+        SUMMARY+=("OK      $label  (dry-run: nothing to push)")
+      fi
     elif git diff --cached --quiet; then
       if [ "$ahead" -gt 0 ]; then
         log "  DRY-RUN: no file changes, but $ahead unpushed commit(s) would be pushed:"
@@ -208,7 +240,23 @@ process_repo(){
   fi
 
   # ---- commit (only if there is something staged) ----
-  if git diff --cached --quiet; then
+  if [ "$mode" = "push-only" ]; then
+    # These two are different situations and were reported as one. `ahead` is
+    # only counted when an upstream exists, so a feature branch that has never
+    # been published also reads as "0 commits ahead" — which logged "nothing to
+    # push" while sitting on commits, and made the refusal to publish it look
+    # like there had been nothing to publish.
+    if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+      log "  push-only: '$branch' has no upstream — not publishing a new branch."
+      SUMMARY+=("SKIP    $label  (push-only: '$branch' is unpublished)")
+      N_SKIP=$((N_SKIP+1)); return
+    fi
+    if [ "$ahead" -eq 0 ]; then
+      log "  push-only: nothing committed to push; working tree untouched."
+      SUMMARY+=("OK      $label  (nothing to push)"); N_NOOP=$((N_NOOP+1)); return
+    fi
+    log "  push-only: $ahead commit(s) to push; working tree untouched."
+  elif git diff --cached --quiet; then
     if [ "$ahead" -gt 0 ]; then
       log "  no file changes to commit; pushing $ahead earlier commit(s)."
     else
@@ -244,11 +292,18 @@ process_repo(){
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line%%#*}"; line="$(echo "$line" | xargs)"   # strip comments + trim
   [ -z "$line" ] && continue
+  # A line is "<entry> [flags...]". Everything after the first field is a mode
+  # flag, so the entry itself stays exactly what it always was — the GUI keys
+  # its rows on that string and --repo matches against it.
+  entry="${line%% *}"
+  flags=" ${line#"$entry"} "
+  mode="sweep"
+  case "$flags" in *" push-only "*) mode="push-only" ;; esac
   # --repo accepts the config entry ("sentinel_fork/vpn_agent") or its bare
   # name ("vpn_agent"); the GUI sends the entry, a human usually sends the name.
-  if [ -n "$ONLY" ] && [ "$line" != "$ONLY" ] \
-     && [ "$(basename "$(resolve_repo "$line")")" != "$ONLY" ]; then continue; fi
-  process_repo "$line"
+  if [ -n "$ONLY" ] && [ "$entry" != "$ONLY" ] \
+     && [ "$(basename "$(resolve_repo "$entry")")" != "$ONLY" ]; then continue; fi
+  process_repo "$entry" "$mode"
 done < "$CONFIG"
 
 # --- summary ---------------------------------------------------------------
