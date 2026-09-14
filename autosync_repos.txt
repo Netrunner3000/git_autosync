@@ -5,6 +5,21 @@
 #
 # Only repos that already have a GitHub 'origin' remote are synced;
 # others are skipped with a notice.
+#
+# MODES. A repo may carry a flag after its name:
+#
+#     imprint  push-only
+#
+# push-only  Push commits that already exist; never stage or commit the working
+#            tree, and never publish a branch that has no upstream. Use it for
+#            any repo a person or an agent is actively working in. The default
+#            (a sweep: git add -A, commit, push) is right for a repo nobody
+#            edits between runs, and wrong for one that is mid-change — it rolls
+#            unrelated half-finished work into one "autosync: <timestamp>"
+#            commit that looks like history and is painful to unpick.
+#
+# The gitleaks history scan runs in both modes. The staged scan is skipped in
+# push-only because nothing is staged.
 
 backup_manager
 toolbox/convert_epub
@@ -12,10 +27,15 @@ toolbox/image_tools
 sentinel_fork/vpn_agent
 git_autosync        # this tool itself (synced once it has a GitHub remote)
 
-# Not listed on purpose: 'imprint' develops on feature branches with work in
-# progress. autosync only ever pushes the *checked-out* branch, so it would
-# commit WIP under a timestamp message and publish whatever branch happened to
-# be current, while main's commits sat unpushed. Push that one by hand.
+# 'imprint' and 'imprint/vidforge' are listed in the live config with
+# push-only, which is what that flag was added for: they develop on feature
+# branches with work in progress, and a sweep there published WIP under a
+# timestamp message. push-only backs up their real commits and leaves the rest
+# alone.
+#
+# Note the live config is ~/Library/Application Support/git_autosync/
+# autosync_repos.txt (AUTOSYNC_CONFIG in the LaunchAgent plist). This file is
+# the seed and the reference; edit the other one to change what runs tonight.
 #
 # Leave out any repo that still has secrets committed in its history, until the
 # secrets are removed and the history is cleaned. Even if such a repo is added

@@ -67,6 +67,47 @@ Any repo whose history still contains committed secrets should be left out until
 it's cleaned — and even if you add one early, the history scan will keep blocking
 it, by design.
 
+> **The file the engine actually reads** is
+> `~/Library/Application Support/git_autosync/autosync_repos.txt`, set via
+> `AUTOSYNC_CONFIG` in the LaunchAgent plist. The copy in this repo is the seed
+> and the reference. Edit the first one to change what runs tonight — checking
+> the wrong one is how seven repos sat unsynced for days while the nightly log
+> reported success.
+
+### Two modes
+
+A line may carry a flag after the repo name:
+
+```
+backup_manager              # sweep (the default)
+imprint  push-only
+```
+
+| Mode | What it does |
+|---|---|
+| **sweep** (default) | `git add -A`, commit everything as `autosync: <timestamp>`, push. |
+| **push-only** | Push commits that already exist. Never stages, never commits, never publishes a branch that has no upstream. |
+
+Use **push-only** for any repo a person or an agent is actively working in.
+
+A sweep is right for a repo nobody edits between runs — a config file you
+change by hand and never commit is exactly what it is for. It is wrong for a
+repo mid-change, because it rolls several unrelated half-finished edits into
+one commit whose message describes none of them. That is worse than not backing
+them up: it looks like history, and unpicking it later means reading diffs to
+work out which lines belonged to which piece of work. `imprint` collected three
+such commits on consecutive nights, one of which buried most of a documentation
+rewrite.
+
+push-only also declines to push a branch with no upstream. autosync pushes
+whichever branch is checked out, so without that a timer can make a feature
+branch public under a name nobody chose to publish.
+
+The gitleaks **history** scan runs in both modes — it covers everything about
+to be published. The **staged** scan is skipped in push-only, because nothing
+is staged and scanning an empty index would report a clean result that was
+never actually performed.
+
 ## Publishing a new project to GitHub
 
 A repo with no `origin` remote is normally just **SKIP**ped — autosync never

@@ -8,6 +8,8 @@
 
 ## v2 — current
 
+- [x] `P1` `feature` `@ai` **push-only mode.** A sweep in a repo someone is working in rolls unrelated half-finished changes into one `autosync: <timestamp>` commit — `imprint` collected three on consecutive nights, one burying most of a docs rewrite. A config line may now carry `push-only`: push existing commits, never stage or commit, never publish an untracked branch. History scan still runs; staged scan skipped because nothing is staged. `imprint` and `imprint/vidforge` are set to it in the live config.
+- [x] `P2` `testing` `@ai` **The engine had no tests.** Uncomfortable for the one tool whose job is writing to every other repo. `tests/test_push_only.py` drives the real shell script against throwaway repos and a throwaway remote. Two self-inflicted bugs it caught: the first version *skipped* when its fixture was misconfigured, so seven useless skips read as success; and the no-upstream branch in the push block was unreachable, because `ahead` is only counted when an upstream exists — the protection worked by accident and logged "nothing to push" while sitting on commits.
 - [ ] `P0` `security` `@me` **Rotate any credential that was ever committed.** Repos with secrets in history stay out of `autosync_repos.txt`; publishing one requires history cleanup first, and the credential should be rotated regardless of what GitHub sees.
 - [ ] `P1` `infra` `@me` **Coverage has fallen far behind the repo count.** The Sep 2026
   reorg left 21 repos under `active/`; `autosync_repos.txt` lists 5. Uncovered:
