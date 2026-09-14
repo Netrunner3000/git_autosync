@@ -173,6 +173,18 @@ this script and set `AUTOSYNC_CONFIG` / `AUTOSYNC_LOG_DIR` / `AUTOSYNC_STATE_DIR
 (Finder/launchd processes don't inherit your shell's `PATH`) — see
 `app/scheduler.py` for a working example.
 
+## What it will not do for you
+
+It commits and pushes on a timer, which makes it a poor fit for a repo whose
+history anyone reads. Two limits worth knowing before adding a project:
+
+* **Sweep mode writes the commit message.** Everything in the tree lands as
+  `autosync: <timestamp>`. If the work deserved a message, use `push-only` and
+  commit it yourself.
+* **It pushes the branch that happens to be checked out.** In sweep mode a
+  branch with no upstream is published, which on a feature-branch repo means a
+  timer can make work in progress public. `push-only` declines instead.
+
 ## How it stays safe
 
 - Secrets in *new changes* → blocked before the commit is ever made.
