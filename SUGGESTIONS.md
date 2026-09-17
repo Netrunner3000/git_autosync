@@ -6,8 +6,6 @@ Status: `IDEA` · `CONSIDERING` · `PLANNED` · `DONE` · `REJECTED`
 
 | # | Suggestion | Category | Effort | Status |
 |---|---|---|---|---|
-| 1 | Fail closed and say so loudly when `gitleaks` is absent | security | S | DONE |
-| 2 | Last-sync state surfaced in the GUI instead of only on disk | design | S | DONE |
 | 3 | Per-repo commit-message templates | feature | M | CONSIDERING |
 | 4 | GUI dry run — show the exact diff that would be pushed | feature | M | CONSIDERING |
 | 5 | Parallel repo scanning; gitleaks dominates runtime | performance | M | IDEA |
