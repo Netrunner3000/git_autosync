@@ -65,6 +65,20 @@ def days_since_synced(repo_name: str) -> int | None:
     return (datetime.now() - last).days
 
 
+def humanize(when) -> str | None:
+    """'just now' / '5m ago' / '2h ago' / '3d ago' from a datetime."""
+    if when is None:
+        return None
+    total = int((datetime.now() - when).total_seconds())
+    if total < 90:
+        return "just now"
+    if total < 3600:
+        return f"{total // 60}m ago"
+    if total < 86400:
+        return f"{total // 3600}h ago"
+    return f"{total // 86400}d ago"
+
+
 def time_since_synced(repo_name: str) -> str | None:
     """Human-readable 'just now / 5m ago / 2h ago / 3d ago'. None if never synced."""
     stamp = _lookup(read_all(), repo_name)

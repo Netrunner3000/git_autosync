@@ -356,8 +356,7 @@ class MainWindow(QMainWindow):
                           on_publish=publish_cb, on_privacy=privacy_cb,
                           on_ignore=self._on_open_ignore,
                           on_allowlist=self._on_allowlist_single)
-            time_str = repo_state.time_since_synced(name)
-            row.set_time(time_str, stale=repo_state.is_stale(name))
+            self._apply_time(row, name)
             item = QListWidgetItem()
             # Width 0 lets the item span the viewport instead of stopping at the
             # row's natural width — otherwise the right-hand columns float short
@@ -421,7 +420,7 @@ class MainWindow(QMainWindow):
         name = cell("Repository")
         name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         lay.addWidget(name, stretch=1)
-        lay.addWidget(cell("Last synced", repo_row.TIME_W,
+        lay.addWidget(cell("Last commit", repo_row.TIME_W,
                            Qt.AlignRight | Qt.AlignVCenter))
         lay.addWidget(cell("Status", repo_row.BADGE_W, Qt.AlignCenter))
         # Width is set from a real row once one exists — the button cluster's
@@ -438,6 +437,26 @@ class MainWindow(QMainWindow):
             " letter-spacing:0.4px; background:transparent; }"
         )
         return header
+
+    def _apply_time(self, row, name: str):
+        """Show when the repo last changed, and explain both clocks on hover.
+
+        Last commit is the useful number: commits arrive from editors, agents
+        and other tools, and the Status badge already says whether anything is
+        outstanding. When git_autosync itself last pushed is bookkeeping, so it
+        moves to the tooltip.
+        """
+        when = paths.last_commit_time(name)
+        row.set_time(repo_state.humanize(when), stale=False)
+        if when is None:
+            row.set_time(None, stale=True)
+            row.time_label.setText("no commits")
+        synced = repo_state.time_since_synced(name)
+        row.time_label.setToolTip(
+            (f"Last commit: {when:%Y-%m-%d %H:%M}\n" if when else "No commits yet\n")
+            + (f"git_autosync last pushed this: {synced}"
+               if synced else "git_autosync has not pushed this repo itself")
+            + "\n\nStatus says whether anything is still waiting to go up.")
 
     def _align_header_to_rows(self):
         """Reserve the same width for the header's Actions column as a real
@@ -705,8 +724,7 @@ class MainWindow(QMainWindow):
                 row.set_status(status)
                 row.set_blocked(info["status"] == "BLOCKED")
             if not row.is_missing():
-                time_str = repo_state.time_since_synced(name)
-                row.set_time(time_str, stale=repo_state.is_stale(name))
+                self._apply_time(row, name)
 
         # Leak report in output pane
         blocked = {n: f for n, f in self._last_findings.items()

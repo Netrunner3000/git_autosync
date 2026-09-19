@@ -85,10 +85,24 @@ class RescanDialog(QDialog):
                       [(f"add:{d}", d) for d in self.plan["new"]])
         body_layout.addStretch(1)
 
+        # Paint the panel explicitly: inheriting the window's palette gave dark
+        # text on a dark ground here, which was unreadable.
+        body.setObjectName("rescanBody")
+        body.setStyleSheet(
+            "#rescanBody { background:#FFFFFF; }"
+            "#rescanBody QLabel { color:#1D1D1F; background:transparent; }"
+            "#rescanBody QCheckBox { color:#1D1D1F; background:transparent;"
+            " padding:2px 0; }"
+        )
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(body)
         scroll.setMinimumHeight(260)
+        scroll.setStyleSheet(
+            "QScrollArea { background:#FFFFFF; border:1px solid #E5E5EA;"
+            " border-radius:8px; }"
+            "QScrollArea > QWidget > QWidget { background:#FFFFFF; }"
+        )
         outer.addWidget(scroll, stretch=1)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -102,7 +116,7 @@ class RescanDialog(QDialog):
         if not rows:
             return
         lbl = QLabel(title)
-        lbl.setStyleSheet("font-weight:600; color:#1D1D1F; margin-top:8px;")
+        lbl.setStyleSheet("font-weight:700; color:#1D1D1F; background:transparent; margin-top:10px;")
         layout.addWidget(lbl)
         for key, text in rows:
             cb = QCheckBox(text)

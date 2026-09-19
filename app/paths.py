@@ -124,6 +124,30 @@ def repos_without_remote() -> list[Path]:
     return [base / rel for rel in discover_repos() if not has_remote(rel)]
 
 
+def last_commit_time(entry: str):
+    """When this repo last changed, from git itself.
+
+    The app's own bookkeeping only knows when *it* last pushed, which says
+    nothing once commits arrive by other means. git is the source of truth for
+    "has anything happened here lately".
+    """
+    from datetime import datetime
+    import subprocess
+
+    git = find_git() or "git"
+    try:
+        r = subprocess.run(
+            [git, "-C", str(resolve_entry(entry)), "log", "-1", "--format=%ct"],
+            capture_output=True, text=True, timeout=8,
+        )
+    except Exception:
+        return None
+    out = r.stdout.strip()
+    if r.returncode != 0 or not out.isdigit():
+        return None
+    return datetime.fromtimestamp(int(out))
+
+
 def repo_slug(name: str) -> str | None:
     """owner/repo for a local repo, read from its 'origin' remote.
 
