@@ -18,7 +18,7 @@ _BADGE = {
 ROW_MARGINS = (8, 6, 10, 6)
 ROW_SPACING = 8
 CHECK_W = 20
-TIME_W  = 72
+TIME_W  = 96   # fits the 'LAST SYNCED' heading; see tests/test_header_fit.py
 BADGE_W = 88
 
 _TIME_STYLE  = "color:#6E6E73; font-size:11px;"
@@ -57,6 +57,10 @@ class RepoRow(QWidget):
         self.time_label.setFixedWidth(TIME_W)
         self.time_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.time_label.setStyleSheet(_EMPTY_STYLE)
+        self.time_label.setToolTip(
+            "When git_autosync last pushed this repo. Commits you or another "
+            "tool already pushed still show as Clean — this is not the date of "
+            "the last commit.")
         layout.addWidget(self.time_label)
 
         # Colored status badge — hidden until first run
@@ -211,9 +215,10 @@ class RepoRow(QWidget):
         if self.ignore_btn:
             if blocked:
                 self.ignore_btn.setStyleSheet(
-                    "QPushButton { background:#C0392B; color:white; border-radius:6px;"
-                    " padding:3px 10px; font-size:12px; font-weight:600; }"
-                    "QPushButton:hover { background:#A93226; }"
+                    "QPushButton { color:#C0392B; background:#FDEDEC;"
+                    " border:1px solid #E6A9A1; border-radius:5px;"
+                    " padding:3px 9px; font-size:11px; font-weight:700; }"
+                    "QPushButton:hover { background:#FAD9D5; border-color:#D98B80; }"
                 )
             else:
                 self.ignore_btn.setStyleSheet("")
