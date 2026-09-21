@@ -25,6 +25,8 @@ Status: `IDEA` · `CONSIDERING` · `PLANNED` · `DONE` · `REJECTED`
 | Tray icon and background behaviour | Aug 2026 |
 | `--create-remote` publishing flow | Aug 2026 |
 | User-writable config/log location, `AUTOSYNC_LOG_DIR` | Aug 2026 |
+| Time column reads git commit history ("Last commit") instead of git_autosync's own push bookkeeping | Sep 2026 |
+| Fixed clipped "LAST SYNCED" header label and dark-on-dark contrast in the Find repos… panel | Sep 2026 |
 
 ## Rejected
 

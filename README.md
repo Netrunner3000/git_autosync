@@ -232,9 +232,13 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
   - A **checkbox** — include or exclude this repo from bulk Dry-run / Sync now.
     Use the **All** / **None** buttons in the header to check or clear all at once.
   - The repo name first, followed by its containing folder path in muted text. Column
-    headers keep the checkbox, repository, last-sync, status, and action fields aligned.
-  - A **last-synced time** — human-readable ("5m ago", "2h ago", "3d ago").
-    Shown as an amber pill when the repo is stale (3+ days) or has never synced.
+    headers keep the checkbox, repository, last-commit, status, and action fields aligned.
+  - A **last-commit time** — human-readable ("5m ago", "2h ago", "3d ago"), read
+    straight from git rather than from git_autosync's own push bookkeeping — a
+    repo changed by an editor, another tool, or an agent no longer reads as
+    stale just because git_autosync itself hasn't pushed it. Shown as an amber
+    "no commits" pill only when the repo has no commits at all. Hover the time
+    for the exact commit timestamp plus when git_autosync itself last pushed.
   - A colored **status badge** after each run:
     `✓ Synced` (green) · `✕ Blocked` (red) · `⊘ Skipped` (grey) ·
     `⚠ Error` (amber) · `No changes` (grey).

@@ -39,6 +39,8 @@
 - [x] `P1` `bug` `@ai` **Nested repository status is keyed by config entry.** Repositories with the same leaf-name context no longer lose their per-entry last-sync state or display “never” incorrectly.
 - [x] `P2` `design` `@ai` **Repository rows are readable at a glance.** Column headers align the controls, the repository name leads, the containing folders trail in muted text, and the None button no longer clips.
 - [x] `P2` `maintenance` `@ai` Follow SONAR's `sports` → `playmaker` repository rename in the tracked-project list.
+- [x] `P2` `bug` `@ai` **The time column read git_autosync's own push log, not the repo.** A repo committed to by an editor, agent, or another tool still showed an old "last synced" time and could look stale (or trigger the amber pill) even though nothing was actually outstanding. The column is now **Last commit**, read from `git log` itself; git_autosync's own last-push time moved to the tooltip alongside the exact commit date.
+- [x] `P3` `bug` `@ai` **"LAST SYNCED" clipped to "AST SYNCED"** in its 72px column; widened to 96px and added `tests/test_header_fit.py`, which measures every header label against its cell so a future wording/font change can't silently re-break it. Also fixed the **Find repos…** reconciliation panel painting dark text on a dark background (it now paints its own white panel explicitly instead of inheriting the window palette).
 
 ## v3 — later
 
