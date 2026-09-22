@@ -148,6 +148,35 @@ def last_commit_time(entry: str):
     return datetime.fromtimestamp(int(out))
 
 
+def readme_updated() -> str | None:
+    """When the bundled README last changed.
+
+    Prefers the commit date (what the docs were last edited), falling back to
+    the file's mtime for a frozen bundle, where there is no git checkout.
+    """
+    from datetime import datetime
+    import subprocess
+
+    path = readme_path()
+    if not path.exists():
+        return None
+    git = find_git() or "git"
+    try:
+        r = subprocess.run(
+            [git, "-C", str(PROJECT_ROOT), "log", "-1", "--format=%cd",
+             "--date=format:%Y-%m-%d %H:%M", "--", "README.md"],
+            capture_output=True, text=True, timeout=8,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except Exception:
+        pass
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return None
+
+
 def repo_slug(name: str) -> str | None:
     """owner/repo for a local repo, read from its 'origin' remote.
 

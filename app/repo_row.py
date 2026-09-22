@@ -27,7 +27,8 @@ _EMPTY_STYLE = "background:transparent;"
 
 
 class RepoRow(QWidget):
-    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None, on_ignore=None, on_allowlist=None):
+    def __init__(self, name: str, on_dry_run, on_sync, on_publish=None, on_privacy=None,
+             on_ignore=None, on_allowlist=None, on_remove=None):
         super().__init__()
         self.name = name
         self._status = None
@@ -103,6 +104,16 @@ class RepoRow(QWidget):
             layout.addWidget(self.ignore_btn)
         else:
             self.ignore_btn = None
+
+        self.remove_btn = QPushButton("Remove")
+        self.remove_btn.setProperty("class", "rowButton")
+        self.remove_btn.setToolTip(
+            "Drop this entry from the repo list. Only the list changes — no "
+            "files and no GitHub repo are touched.")
+        self.remove_btn.setVisible(False)
+        if on_remove is not None:
+            self.remove_btn.clicked.connect(lambda: on_remove(name))
+        layout.addWidget(self.remove_btn)
 
         if on_allowlist is not None:
             self.allowlist_btn = QPushButton("Allowlist")
@@ -202,7 +213,11 @@ class RepoRow(QWidget):
             self.set_buttons_enabled(False)
             self.checkbox.setChecked(False)
             self.checkbox.setEnabled(False)
+            # Removing it is the only action that still makes sense here.
+            self.remove_btn.setVisible(True)
+            self.remove_btn.setEnabled(True)
         else:
+            self.remove_btn.setVisible(False)
             self.label.setText(self._name_markup(self.name))
             self.label.setStyleSheet("")
             self.setToolTip("")
@@ -229,6 +244,7 @@ class RepoRow(QWidget):
         if self.publish_btn: self.publish_btn.setEnabled(enabled)
         if self.privacy_btn: self.privacy_btn.setEnabled(enabled)
         if self.ignore_btn:     self.ignore_btn.setEnabled(enabled)
+        if self.remove_btn:     self.remove_btn.setEnabled(enabled or self._missing)
         if self.allowlist_btn:  self.allowlist_btn.setEnabled(enabled)
 
     def set_tooltips(self, enabled: bool):

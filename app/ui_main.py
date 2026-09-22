@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt, QFileSystemWatcher, QSize, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QApplication,
     QDialog,
     QDialogButtonBox,
@@ -188,18 +189,6 @@ class MainWindow(QMainWindow):
         repos_lbl.setObjectName("sectionLabel")
         repos_header.addWidget(repos_lbl)
         repos_header.addStretch(1)
-        self.select_all_btn = QPushButton("All")
-        self.select_all_btn.setProperty("class", "rowButton")
-        self.select_all_btn.setMinimumWidth(46)
-        self.select_all_btn.setToolTip("Select all repos")
-        self.select_all_btn.clicked.connect(lambda: self._set_all_checked(True))
-        self.select_none_btn = QPushButton("None")
-        self.select_none_btn.setProperty("class", "rowButton")
-        self.select_none_btn.setMinimumWidth(56)
-        self.select_none_btn.setToolTip("Deselect all repos")
-        self.select_none_btn.clicked.connect(lambda: self._set_all_checked(False))
-        repos_header.addWidget(self.select_all_btn)
-        repos_header.addWidget(self.select_none_btn)
         self.rescan_btn = QPushButton("Find repos…")
         self.rescan_btn.setProperty("class", "rowButton")
         self.rescan_btn.setToolTip(
@@ -368,7 +357,8 @@ class MainWindow(QMainWindow):
             row = RepoRow(name, self._on_dry_run_single, self._on_sync_single,
                           on_publish=publish_cb, on_privacy=privacy_cb,
                           on_ignore=self._on_open_ignore,
-                          on_allowlist=self._on_allowlist_single)
+                          on_allowlist=self._on_allowlist_single,
+                          on_remove=self._on_remove_entry)
             self._apply_time(row, name)
             item = QListWidgetItem()
             # Width 0 lets the item span the viewport instead of stopping at the
@@ -381,8 +371,10 @@ class MainWindow(QMainWindow):
             self._row_widgets[name] = row
             if not paths.repo_exists(name):
                 row.set_missing(True)
+            row.checkbox.toggled.connect(self._refresh_select_all_box)
         self._apply_tooltips(self.tooltips_btn.isChecked())
         self._refresh_drift_banner()
+        self._refresh_select_all_box()
         QTimer.singleShot(0, self._align_header_to_rows)
         # Fetch GitHub visibility for each repo in the background (non-blocking)
         QTimer.singleShot(0, self._fetch_all_visibility)
@@ -426,9 +418,13 @@ class MainWindow(QMainWindow):
                 lbl.setFixedWidth(width)
             return lbl
 
-        spacer = QWidget()
-        spacer.setFixedWidth(repo_row.CHECK_W)
-        lay.addWidget(spacer)
+        # Select-all sits in the checkbox column, lined up with the rows'
+        # own boxes, instead of as separate All/None buttons off to the side.
+        self.select_all_box = QCheckBox()
+        self.select_all_box.setFixedWidth(repo_row.CHECK_W)
+        self.select_all_box.setToolTip("Check or uncheck every repo")
+        self.select_all_box.clicked.connect(self._on_select_all_clicked)
+        lay.addWidget(self.select_all_box)
 
         name = cell("Repository")
         name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -529,7 +525,42 @@ class MainWindow(QMainWindow):
 
     def _set_all_checked(self, checked: bool):
         for row in self._row_widgets.values():
-            row.checkbox.setChecked(checked)
+            if not row.is_missing():
+                row.checkbox.setChecked(checked)
+        self._refresh_select_all_box()
+
+    def _on_select_all_clicked(self, checked: bool):
+        self._set_all_checked(checked)
+
+    def _refresh_select_all_box(self):
+        """Reflect the rows: all / none / partial, without re-triggering."""
+        if not hasattr(self, "select_all_box"):
+            return
+        rows = [r for r in self._row_widgets.values() if not r.is_missing()]
+        checked = sum(1 for r in rows if r.is_checked())
+        box = self.select_all_box
+        box.blockSignals(True)
+        box.setTristate(0 < checked < len(rows))
+        if not rows or checked == 0:
+            box.setCheckState(Qt.Unchecked)
+        elif checked == len(rows):
+            box.setCheckState(Qt.Checked)
+        else:
+            box.setCheckState(Qt.PartiallyChecked)
+        box.blockSignals(False)
+
+    def _on_remove_entry(self, name: str):
+        """Drop one entry from the list. Touches the list only."""
+        if QMessageBox.question(
+            self, "Remove from list?",
+            f"Remove '{name}' from the repo list?\n\nNothing on disk and "
+            "nothing on GitHub is touched — git_autosync just stops tracking it.",
+            QMessageBox.Cancel | QMessageBox.Yes, QMessageBox.Yes,
+        ) != QMessageBox.Yes:
+            return
+        entries = [e for e in config.read_repos(self.config_path) if e != name]
+        config.write_repos(self.config_path, entries)
+        self._reload_repo_list()
 
     def _checked_repos(self) -> list[str]:
         """Names of repos whose checkbox is ticked. Falls back to all if none ticked."""
@@ -1098,7 +1129,8 @@ class MainWindow(QMainWindow):
     def _on_open_documentation(self):
         readme = paths.readme_path()
         if readme.exists():
-            DocumentationDialog(self, readme.read_text()).exec()
+            DocumentationDialog(self, readme.read_text(),
+                                updated=paths.readme_updated()).exec()
         else:
             QMessageBox.information(self, "Documentation",
                                     "README.md wasn't found alongside the app.")
