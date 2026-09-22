@@ -42,6 +42,14 @@
 - [x] `P2` `bug` `@ai` **The time column read git_autosync's own push log, not the repo.** A repo committed to by an editor, agent, or another tool still showed an old "last synced" time and could look stale (or trigger the amber pill) even though nothing was actually outstanding. The column is now **Last commit**, read from `git log` itself; git_autosync's own last-push time moved to the tooltip alongside the exact commit date.
 - [x] `P3` `bug` `@ai` **"LAST SYNCED" clipped to "AST SYNCED"** in its 72px column; widened to 96px and added `tests/test_header_fit.py`, which measures every header label against its cell so a future wording/font change can't silently re-break it. Also fixed the **Find repos…** reconciliation panel painting dark text on a dark background (it now paints its own white panel explicitly instead of inheriting the window palette).
 
+- [x] `P2` `infra` `@ai` **Versioned `v<MAJOR>.<BUILD>`, shown in the app.** The arc
+  lives in `VERSION`; the build is `git rev-list --count HEAD`, so it cannot be forgotten.
+  `app/version.py` reads live git from a checkout and a `_build_info.json` stamped by
+  `scripts/stamp_version.py` from a frozen bundle, and says `v2.???` rather than guessing
+  when it has neither. Shown in the window title, and read by Lab Hub's tile so you can see which
+  build its Launch button would open. Lab-wide scheme, same two inputs as the Lab Project
+  Monitor.
+
 ## v3 — later
 
 - [ ] `P2` `feature` `@ai` Per-repo commit-message templates rather than one global custom message

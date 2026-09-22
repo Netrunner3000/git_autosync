@@ -13,6 +13,10 @@ datas = [
     (str(PROJECT_ROOT / "git_autosync.sh"), "."),
     (str(PROJECT_ROOT / "autosync_repos.txt"), "."),
     (str(PROJECT_ROOT / "README.md"), "."),
+    # The arc, plus the build stamped in by scripts/stamp_version.py. A frozen
+    # bundle has no .git to ask, so without these it can only say v2.???.
+    (str(PROJECT_ROOT / "VERSION"), "."),
+    (str(PROJECT_ROOT / "_build_info.json"), "."),
 ]
 
 icon_path = PROJECT_ROOT / "packaging" / "icon.icns"

@@ -8,6 +8,9 @@ source .venv/bin/activate
 uv pip install -q -r requirements.txt pyinstaller
 
 rm -rf build dist
+# A frozen bundle has no .git, so record the build it was made from.
+python scripts/stamp_version.py
+
 pyinstaller --noconfirm packaging/git_autosync.spec
 
 codesign --force --deep -s - dist/git_autosync.app

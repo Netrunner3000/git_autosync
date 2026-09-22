@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import config, login_item, paths, repo_state, scheduler
+from . import config, login_item, paths, repo_state, scheduler, version
 from .create_repo_dialog import CreateRepoDialog
 from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
@@ -128,7 +128,7 @@ def _format_git_status(raw: str) -> str:
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("git_autosync")
+        self.setWindowTitle(f"git_autosync {version.version_string()}")
         self.setMinimumSize(700, 500)
         self.resize(860, 700)
 
