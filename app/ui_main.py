@@ -315,7 +315,20 @@ class MainWindow(QMainWindow):
 
     def _refresh_last_sync_label(self):
         stamp = paths.read_last_sync()
-        self.last_sync_label.setText(f"  Last sync: {stamp}" if stamp else "  Last sync: never")
+        success = paths.read_last_success()
+        status = paths.read_last_status()
+
+        if not stamp:
+            text = "  Last sync: never"
+        elif status == "attention" and success and success != stamp:
+            # The last run left something blocked or errored, so say when work
+            # last actually got out — otherwise a red icon has no context.
+            text = f"  Last run: {stamp} (had problems) · Last good sync: {success}"
+        elif status == "attention":
+            text = f"  Last run: {stamp} (had problems) · No fully clean sync yet"
+        else:
+            text = f"  Last successful sync: {stamp}"
+        self.last_sync_label.setText(text)
         self._refresh_next_sync_label()
 
     def _refresh_next_sync_label(self):
@@ -1100,7 +1113,10 @@ class MainWindow(QMainWindow):
         self._tray.setIcon(self._status_icon(paths.read_last_status()))
         self._tray.setToolTip("git_autosync")
 
-        menu = QMenu()
+        # Parented and kept on self: a bare QMenu() local is garbage-collected
+        # once _setup_tray returns, leaving the status item holding a freed C++
+        # object.
+        self._tray_menu = menu = QMenu(self)
         menu.addAction("Open git_autosync", self._tray_open)
         menu.addSeparator()
         menu.addAction("Dry-run", lambda: self._run(dry_run=True))
@@ -1140,23 +1156,30 @@ class MainWindow(QMainWindow):
         status = paths.read_last_status()
         self._tray.setIcon(self._status_icon(status))
         stamp = paths.read_last_sync()
+        success = paths.read_last_success()
         label = {"ok": "all clear", "attention": "needs attention"}.get(status, "no runs yet")
-        self._tray.setToolTip(
-            f"git_autosync — {label}" + (f"\nLast sync: {stamp}" if stamp else "")
-        )
+        tip = f"git_autosync — {label}"
+        if stamp:
+            tip += f"\nLast run: {stamp}"
+        if status == "attention":
+            tip += (f"\nLast good sync: {success}" if success
+                    else "\nNo fully clean sync yet")
+            tip += "\nOpen the app and check the log for the failing repo."
+        self._tray.setToolTip(tip)
 
     def _on_tray_tick(self):
         self._refresh_tray_icon()
         self._refresh_last_sync_label()
 
     def _on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.DoubleClick:
-            self._tray_open()
-        # Single left-click: show the context menu at the cursor position
-        elif reason == QSystemTrayIcon.Trigger:
-            self._tray.contextMenu().popup(
-                self._tray.geometry().center()
-            )
+        """Deliberately does nothing on macOS.
+
+        setContextMenu() already makes the status item open the menu on click.
+        Calling popup() from inside this callback as well made Qt's Cocoa
+        plugin ask a non-mouse event for its clickCount, which raises an
+        NSAssertion and aborts the process — the click-the-icon crash.
+        """
+        return
 
     def _show_tray_hint(self):
         """Say what happened — a quit that visibly does nothing reads as a hang."""

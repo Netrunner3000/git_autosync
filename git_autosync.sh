@@ -321,6 +321,9 @@ if [ "$DRY_RUN" -eq 0 ]; then
   ts > "$STATE_DIR/last_sync.txt"
   if [ $((N_BLOCKED + N_ERR)) -eq 0 ]; then
     echo "ok" > "$STATE_DIR/last_status.txt"
+    # Only a clean run counts as a success. last_sync.txt records that a run
+    # happened at all, which says nothing about whether the work got out.
+    ts > "$STATE_DIR/last_success.txt"
   else
     echo "attention" > "$STATE_DIR/last_status.txt"
   fi

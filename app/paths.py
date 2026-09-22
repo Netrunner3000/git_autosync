@@ -204,6 +204,20 @@ def read_last_sync() -> str | None:
     return p.read_text().strip() if p.exists() else None
 
 
+def last_success_path() -> Path:
+    return app_support_dir() / "last_success.txt"
+
+
+def read_last_success() -> str | None:
+    """When a real run last completed with nothing blocked and nothing errored.
+
+    Distinct from read_last_sync(), which only says a run happened — a run that
+    failed to push still updates that one.
+    """
+    p = last_success_path()
+    return p.read_text().strip() if p.exists() else None
+
+
 def last_status_path() -> Path:
     return app_support_dir() / "last_status.txt"
 
