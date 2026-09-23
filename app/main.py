@@ -66,7 +66,17 @@ def main():
     # Before QApplication: NSApplication reads NSApplicationCrashOnExceptions
     # when it is created, and an ObjC exception escaping Qt's Cocoa plugin
     # otherwise aborts the process with nothing logged.
-    install_exception_guard()
+    guard_ok = install_exception_guard()
+    # Recorded so a recurrence can be checked against a build that definitely
+    # had the guard, instead of guessing which binary was running.
+    try:
+        from . import paths as _paths
+        from datetime import datetime as _dt
+        with open(_paths.user_log_dir() / "crash.log", "a") as _fh:
+            _fh.write(f"[{_dt.now():%Y-%m-%d %H:%M:%S}] startup — "
+                      f"exception guard {'active' if guard_ok else 'UNAVAILABLE'}\n")
+    except Exception:
+        pass
     app = _App(sys.argv)
 
     # Try to connect to an already-running instance.

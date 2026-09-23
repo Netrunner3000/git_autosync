@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QFileSystemWatcher, QSize, QTimer
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QCursor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -1160,7 +1160,13 @@ class MainWindow(QMainWindow):
         login_action.toggled.connect(self._on_toggle_login_item)
         menu.addSeparator()
         menu.addAction("Quit", self._tray_quit)
-        self._tray.setContextMenu(menu)
+        # Not setContextMenu(): that hands the menu to AppKit, which opens it
+        # inside an NSMenuTrackingSession during event dispatch. Qt observes
+        # NSMenuDidBeginTracking and asks [NSApp currentEvent] for clickCount;
+        # on macOS 27 that event is not a mouse event there, the assertion
+        # raises an NSException, and it unwinds through libqcocoa's C++ frames
+        # into std::terminate — SIGABRT, no log. Showing the menu ourselves one
+        # event-loop turn later keeps it out of that callout.
         self._tray.activated.connect(self._on_tray_activated)
         self._tray.show()
 
@@ -1204,14 +1210,25 @@ class MainWindow(QMainWindow):
         self._refresh_last_sync_label()
 
     def _on_tray_activated(self, reason):
-        """Deliberately does nothing on macOS.
+        """Open the tray menu, but never from inside AppKit's callout.
 
-        setContextMenu() already makes the status item open the menu on click.
-        Calling popup() from inside this callback as well made Qt's Cocoa
-        plugin ask a non-mouse event for its clickCount, which raises an
-        NSAssertion and aborts the process — the click-the-icon crash.
+        Opening it here synchronously is what aborts the process (see
+        _setup_tray). Deferring to the next event-loop turn means the menu is
+        opened from Qt's own loop, after AppKit has finished dispatching the
+        click.
         """
-        return
+        if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.Context,
+                      QSystemTrayIcon.DoubleClick):
+            QTimer.singleShot(0, self._popup_tray_menu)
+
+    def _popup_tray_menu(self):
+        menu = getattr(self, "_tray_menu", None)
+        if menu is None or self._tray is None:
+            return
+        try:
+            menu.popup(QCursor.pos())
+        except Exception as exc:          # never let the tray take the app down
+            print(f"tray menu failed to open: {exc}")
 
     def _show_tray_hint(self):
         """Say what happened — a quit that visibly does nothing reads as a hang."""
