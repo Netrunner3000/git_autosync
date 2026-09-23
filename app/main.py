@@ -5,6 +5,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from .macos_dock import set_dock_icon_visible
+from .macos_guard import install as install_exception_guard
 from .style import STYLESHEET
 from .ui_main import MainWindow
 
@@ -62,6 +63,10 @@ def main():
     background = "--background" in sys.argv
     if background:
         sys.argv.remove("--background")
+    # Before QApplication: NSApplication reads NSApplicationCrashOnExceptions
+    # when it is created, and an ObjC exception escaping Qt's Cocoa plugin
+    # otherwise aborts the process with nothing logged.
+    install_exception_guard()
     app = _App(sys.argv)
 
     # Try to connect to an already-running instance.
