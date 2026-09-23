@@ -45,6 +45,20 @@ class RepoRow(QWidget):
         self.checkbox.setToolTip("Include in bulk Dry-run / Sync now")
         layout.addWidget(self.checkbox)
 
+        # Sits at the front, not with the action buttons: appended at the end it
+        # pushed a missing row's whole cluster left, out of line with every
+        # other row. Hidden widgets take no layout space, so normal rows are
+        # unaffected.
+        self.remove_btn = QPushButton("Remove")
+        self.remove_btn.setProperty("class", "rowButton")
+        self.remove_btn.setToolTip(
+            "Drop this entry from the repo list. Only the list changes — no "
+            "files and no GitHub repo are touched.")
+        self.remove_btn.setVisible(False)
+        if on_remove is not None:
+            self.remove_btn.clicked.connect(lambda: on_remove(name))
+        layout.addWidget(self.remove_btn)
+
         self.label = QLabel()
         self.label.setObjectName("repoName")
         self.label.setTextFormat(Qt.RichText)
@@ -104,16 +118,6 @@ class RepoRow(QWidget):
             layout.addWidget(self.ignore_btn)
         else:
             self.ignore_btn = None
-
-        self.remove_btn = QPushButton("Remove")
-        self.remove_btn.setProperty("class", "rowButton")
-        self.remove_btn.setToolTip(
-            "Drop this entry from the repo list. Only the list changes — no "
-            "files and no GitHub repo are touched.")
-        self.remove_btn.setVisible(False)
-        if on_remove is not None:
-            self.remove_btn.clicked.connect(lambda: on_remove(name))
-        layout.addWidget(self.remove_btn)
 
         if on_allowlist is not None:
             self.allowlist_btn = QPushButton("Allowlist")
