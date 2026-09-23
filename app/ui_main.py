@@ -34,7 +34,7 @@ from . import config, login_item, paths, repo_state, scheduler, version
 from .create_repo_dialog import CreateRepoDialog
 from .documentation_dialog import DocumentationDialog
 from .ignore_dialog import IgnoreDialog
-from .macos_dock import set_dock_icon_visible
+from .macos_dock import activate_app, set_dock_icon_visible
 from . import repo_row
 from .repo_row import RepoRow
 from .rescan_dialog import RescanDialog, plan_changes
@@ -1226,7 +1226,13 @@ class MainWindow(QMainWindow):
         if menu is None or self._tray is None:
             return
         try:
-            menu.popup(QCursor.pos())
+            # Activate first: an inactive app's first click activates it instead
+            # of hitting the item, so Quit would highlight and never fire.
+            activate_app()
+            # exec(), not popup(): exec runs the menu's own event loop and grabs
+            # input, so the click that selects an item is actually delivered.
+            # Safe here because this already runs a turn after AppKit's dispatch.
+            menu.exec(QCursor.pos())
         except Exception as exc:          # never let the tray take the app down
             print(f"tray menu failed to open: {exc}")
 
