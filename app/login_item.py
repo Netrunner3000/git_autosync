@@ -10,12 +10,25 @@ from pathlib import Path
 
 from . import paths
 
-_LABEL = "com.netrunner3000.git-autosync-login"
+_LABEL = "com.wwds-dev.git-autosync-login"
+_LEGACY_LABELS = ("com.netrunner3000.git-autosync-login",)
 _APP   = "/Applications/git_autosync.app/Contents/MacOS/git_autosync"
 
 
 def _plist_path() -> Path:
     return Path.home() / "Library" / "LaunchAgents" / f"{_LABEL}.plist"
+
+
+def migrate_legacy() -> list[str]:
+    """Drop a login item left behind under the pre-rename label."""
+    done = []
+    for label in _LEGACY_LABELS:
+        p = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+        if p.exists():
+            subprocess.run(["launchctl", "unload", "-w", str(p)], capture_output=True)
+            p.unlink(missing_ok=True)
+            done.append(label)
+    return done
 
 
 def is_enabled() -> bool:

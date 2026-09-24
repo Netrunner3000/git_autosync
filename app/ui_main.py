@@ -151,6 +151,37 @@ class MainWindow(QMainWindow):
         self._refresh_last_sync_label()
         self._setup_tray()
         self._setup_file_watcher()
+        self._migrate_legacy_agents()
+
+    def _migrate_legacy_agents(self):
+        """Carry a schedule/login item across the Netrunner3000 -> wwds-dev rename.
+
+        A LaunchAgent under the old label keeps running after the rename, so
+        leaving it would mean two agents doing the same job — re-install under
+        the new label, then remove the old one.
+        """
+        try:
+            was_login = login_item.is_enabled()
+            removed, schedule = scheduler.migrate_legacy()
+            schedule = schedule or scheduler.get_schedule()
+            moved = removed + login_item.migrate_legacy()
+            if not moved:
+                return
+            if schedule and not scheduler.is_installed():
+                if schedule["mode"] == "interval":
+                    scheduler.install_interval(
+                        schedule["interval_seconds"], self.config_path,
+                        schedule.get("run_at_load", False))
+                else:
+                    scheduler.install_calendar(
+                        schedule["hour"], schedule["minute"], self.config_path,
+                        schedule.get("run_at_load", False))
+            if was_login and not login_item.is_enabled():
+                login_item.enable()
+            self._append_output(
+                f"Migrated launchd agent(s) to the wwds-dev label: {', '.join(moved)}\n")
+        except Exception as exc:
+            self._append_output(f"Could not migrate legacy launchd agents: {exc}\n")
 
     # ── UI construction ────────────────────────────────────────────
 
