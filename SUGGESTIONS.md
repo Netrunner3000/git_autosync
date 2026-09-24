@@ -27,6 +27,10 @@ Status: `IDEA` · `CONSIDERING` · `PLANNED` · `DONE` · `REJECTED`
 | User-writable config/log location, `AUTOSYNC_LOG_DIR` | Aug 2026 |
 | Time column reads git commit history ("Last commit") instead of git_autosync's own push bookkeeping | Sep 2026 |
 | Fixed clipped "LAST SYNCED" header label and dark-on-dark contrast in the Find repos… panel | Sep 2026 |
+| Select-all is a tristate header checkbox, replacing the separate All/None buttons | Sep 2026 |
+| Remove button for a repo row whose folder is gone (list-only, no files/GitHub touched) | Sep 2026 |
+| macOS 27 crash guard — catches AppKit ObjC exceptions instead of a silent SIGABRT, logs to crash.log | Sep 2026 |
+| Docs viewer shows a "Last updated" badge from the README's own commit date | Sep 2026 |
 
 ## Rejected
 

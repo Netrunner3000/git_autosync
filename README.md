@@ -230,9 +230,15 @@ it just shells out to `git_autosync.sh` (and, for repo creation, `gh`) via
 
 - **Repo list** — one row per repo in `autosync_repos.txt`. Each row shows:
   - A **checkbox** — include or exclude this repo from bulk Dry-run / Sync now.
-    Use the **All** / **None** buttons in the header to check or clear all at once.
+    The header carries its own tristate checkbox, lined up in the same column as the
+    rows' own boxes, instead of separate All/None buttons off to the side — checked when
+    every repo is, unchecked when none is, and shown partial otherwise; clicking it
+    checks or clears every row.
   - The repo name first, followed by its containing folder path in muted text. Column
     headers keep the checkbox, repository, last-commit, status, and action fields aligned.
+  - A row for a repo whose folder can no longer be found on disk goes grey and disabled
+    except for a **Remove** button, which drops just that entry from
+    `autosync_repos.txt` — no files and no GitHub repo are touched.
   - A **last-commit time** — human-readable ("5m ago", "2h ago", "3d ago"), read
     straight from git rather than from git_autosync's own push bookkeeping — a
     repo changed by an editor, another tool, or an agent no longer reads as
@@ -295,7 +301,9 @@ the `AUTOSYNC_COMMIT_MSG` env var to the engine script.
   30 min / 1 h / 6 h / 12 h / 24 h) or "run daily at" a specific time. Shows the
   current schedule; lets you update or disable it.
 - **Logs** — reveals the log folder in Finder.
-- **Docs** — renders this README in an in-app viewer.
+- **Docs** — renders this README in an in-app viewer, with a "Last updated" badge
+  reading the README's own commit date (falling back to its file mtime for a
+  frozen bundle with no `.git`), so a stale page is obvious rather than trusted.
 - **Tooltips** — toggles explanatory tooltips on every control.
 - **Edit list** — opens `autosync_repos.txt` in your default editor.
 
@@ -370,6 +378,14 @@ needs right-click → Open (no Apple Developer ID / notarization yet).
 
 ### Notes
 
+- **macOS 27 crash guard.** An Objective-C exception raised inside AppKit's event
+  dispatch (the trigger seen was `-[NSEvent clickCount]` inside libqcocoa on a tray
+  click) unwinds into C++ and aborts the whole process with nothing written anywhere.
+  `app/macos_guard.py` registers `NSApplicationCrashOnExceptions = NO` before
+  `QApplication` is constructed, and installs an uncaught-exception handler that
+  appends the exception name, reason, and call stack to `crash.log` in the app's log
+  directory — so a crash that still gets through leaves evidence instead of a silent
+  abort. Pure ctypes, no PyObjC dependency.
 - Config, logs, and last-sync state live in
   `~/Library/Application Support/git_autosync/` (the packaged bundle is
   read-only), seeded from `autosync_repos.txt` on first run.
