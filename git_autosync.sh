@@ -263,7 +263,11 @@ process_repo(){
       log "  no file changes to commit."
     fi
   else
-    git commit -q -m "${AUTOSYNC_COMMIT_MSG:-autosync: $(ts)}" && log "  committed changes."
+    # Pin the identity rather than inheriting git config: a machine-wide
+    # user.email put the real address into 78 commits across 7 public repos.
+    git -c user.name="${AUTOSYNC_GIT_NAME:-wwds-dev}" \
+        -c user.email="${AUTOSYNC_GIT_EMAIL:-243015673+wwds-dev@users.noreply.github.com}" \
+        commit -q -m "${AUTOSYNC_COMMIT_MSG:-autosync: $(ts)}" && log "  committed changes."
   fi
 
   # ---- create the GitHub repo (first push) or push as usual ----
