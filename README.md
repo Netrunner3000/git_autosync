@@ -401,7 +401,7 @@ needs right-click → Open (no Apple Developer ID / notarization yet).
 ## Git identity
 
 Commits use a pseudonymous identity, not a real name/email — `git config --global
-user.name / user.email` should already be set to the `Netrunner3000` GitHub noreply
+user.name / user.email` should already be set to the `wwds-dev` GitHub noreply
 identity. Don't hardcode a real name/email anywhere in this project.
 
 ## Version
